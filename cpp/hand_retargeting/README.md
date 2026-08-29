@@ -14,6 +14,19 @@ cmake --build build/hand_retargeting
 ctest --test-dir build/hand_retargeting --output-on-failure
 ```
 
+## 安装和下游使用
+
+```bash
+cmake --install build/hand_retargeting --prefix /usr/local
+```
+
+安装后，下游 CMake 项目可以使用：
+
+```cmake
+find_package(dexterous_hand_retargeting CONFIG REQUIRED)
+target_link_libraries(my_node PRIVATE dexterous_hand::retargeting)
+```
+
 离线演示可以使用安全默认限位：
 
 ```bash
