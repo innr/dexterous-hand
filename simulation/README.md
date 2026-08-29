@@ -9,12 +9,17 @@
 
 ```bash
 git submodule update --init --recursive
-dexterous-hand-leap-check --seconds 0.1
+dexterous-hand-leap-check --seconds 1 --pose close
 ```
 
 `config/joint_mapping.json` 记录了官方关节编号、MuJoCo 加载顺序、STS3215
-舵机 ID、关节限位和仿真到硬件的重排规则。舵机方向与零位仍需在实物标定后填写，
-当前配置不会直接驱动硬件。
+舵机 ID、关节限位和仿真到硬件的重排规则。运行检查时，程序会把官方 URDF
+转换为临时 MJCF，加入 16 个按 canonical/hardware ID 排列的位置执行器、PD
+参数、关节阻尼和力矩限幅；临时文件不会修改子模块。
+
+`simulation.home_pose_rad` 是仅用于 MuJoCo 的零姿态，不能当作舵机零位。
+舵机方向与零位仍需在实物标定后填写，当前配置不会直接驱动硬件。`--pose home`
+可只验证保持零姿态，`--pose close` 则运行一个受限的弯曲目标。
 
 ## 安装
 
@@ -44,5 +49,6 @@ dexterous-hand-sim --headless --seconds 5
 pytest
 ```
 
-控制器会生成平滑的周期弯曲目标。下一阶段应将简化模型替换为 LEAP Hand
-官方 URDF/MJCF，并建立与真实 STS3215 舵机一致的关节方向、零位和限位表。
+控制器会生成平滑的周期弯曲目标；LEAP 检查入口现在已切换为官方 16-DOF
+模型。下一阶段是在接入实物后，用扫描结果填写 STS3215 的方向、零位和限位表，
+再把同一套 canonical 目标接到硬件总线。
