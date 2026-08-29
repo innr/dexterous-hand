@@ -59,6 +59,9 @@ struct JointCommand {
   bool valid;
 };
 
+// The implementation exposes this as an alias of RetargetOutput and also
+// includes reason/timestamp diagnostics.
+
 class JointBackend {
  public:
   virtual void send_position(const std::array<double, 16>& position_rad) = 0;
