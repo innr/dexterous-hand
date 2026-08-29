@@ -21,6 +21,8 @@ A frozen Design Doc is the contract used by Codex and by PR review. If implement
 
 PR #1 predates this workflow and overlaps Designs 001-003. Those documents should therefore review/adopt/amend the existing PR rather than request duplicate implementation.
 
+**Merge gate for PR #1:** Designs 001, 002, and 003 must all reach `Frozen`, and PR #1 must be reviewed against all three frozen contracts before it can be approved or merged. Reviewing only Design 001 is not sufficient because PR #1 also changes safety and mapping/hardware-controller behavior.
+
 ## Required sections
 
 Each Design Doc must define Context, Goals, Non-goals, Existing behavior, Proposed architecture, Interfaces, Configuration, Safety/failure behavior, Testing strategy, Acceptance Criteria, Hardware dependencies, Alternatives/trade-offs, and Codex implementation notes.
