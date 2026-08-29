@@ -58,7 +58,7 @@ def execute_motion_test(
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--port", required=True)
+    parser.add_argument("--port", default=None)
     parser.add_argument("--id", type=int, required=True)
     parser.add_argument("--angle-rad", type=float, required=True)
     parser.add_argument("--reference-ticks", type=int, default=2048)
@@ -72,6 +72,8 @@ def main() -> None:
     if not args.enable_torque or not args.confirm:
         print("dry-run only: no torque or goal command sent")
         return
+    if not args.port:
+        raise SystemExit("--port is required when real motion is enabled")
     try:
         with STS3215Bus(args.port, baudrate=args.baudrate, timeout=args.timeout) as bus:
             present = execute_motion_test(
