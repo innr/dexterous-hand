@@ -43,6 +43,9 @@ struct RetargetOutput {
   double timestamp{0.0};
 };
 
+// Language-neutral name used by the ROS 2 and future hardware adapters.
+using JointCommand = RetargetOutput;
+
 struct RetargetConfig {
   std::array<double, kJointCount> lower_limits{};
   std::array<double, kJointCount> upper_limits{};
