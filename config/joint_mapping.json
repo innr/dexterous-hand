@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "description": "LEAP Hand 16-DOF mapping for MuJoCo URDF and STS3215 TTL bus",
+  "sources": {
+    "simulation_repository": "https://github.com/leap-hand/LEAP_Hand_Sim",
+    "simulation_commit": "150bc3d4b61fd6619193ba5a8ef209f3609ced89",
+    "api_repository": "https://github.com/leap-hand/LEAP_Hand_API",
+    "api_reference": "main/python/main.py"
+  },
+  "model": {
+    "relative_urdf": "third_party/LEAP_Hand_Sim/assets/leap_hand/robot.urdf",
+    "source_joint_order": ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15"],
+    "mujoco_joint_order_observed": ["1", "0", "2", "3", "5", "4", "6", "7", "9", "8", "10", "11", "12", "13", "14", "15"]
+  },
+  "hardware": {
+    "protocol": "sts3215_ttl",
+    "position_unit": "radian_at_interface",
+    "servo_ids": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+    "note": "IDs follow the official LEAP numbering convention; confirm and write IDs during hardware commissioning."
+  },
+  "joints": [
+    {"hardware_id": 0, "name": "index_mcp_side", "mujoco_joint": "0", "direction": 1, "zero_offset_rad": 0.0, "limit_rad": [-1.047, 1.047]},
+    {"hardware_id": 1, "name": "index_mcp_forward", "mujoco_joint": "1", "direction": 1, "zero_offset_rad": 0.0, "limit_rad": [-0.314, 2.230]},
+    {"hardware_id": 2, "name": "index_pip", "mujoco_joint": "2", "direction": 1, "zero_offset_rad": 0.0, "limit_rad": [-0.506, 1.885]},
+    {"hardware_id": 3, "name": "index_dip", "mujoco_joint": "3", "direction": 1, "zero_offset_rad": 0.0, "limit_rad": [-0.366, 2.042]},
+    {"hardware_id": 4, "name": "middle_mcp_side", "mujoco_joint": "4", "direction": 1, "zero_offset_rad": 0.0, "limit_rad": [-1.047, 1.047]},
+    {"hardware_id": 5, "name": "middle_mcp_forward", "mujoco_joint": "5", "direction": 1, "zero_offset_rad": 0.0, "limit_rad": [-0.314, 2.230]},
+    {"hardware_id": 6, "name": "middle_pip", "mujoco_joint": "6", "direction": 1, "zero_offset_rad": 0.0, "limit_rad": [-0.506, 1.885]},
+    {"hardware_id": 7, "name": "middle_dip", "mujoco_joint": "7", "direction": 1, "zero_offset_rad": 0.0, "limit_rad": [-0.366, 2.042]},
+    {"hardware_id": 8, "name": "ring_mcp_side", "mujoco_joint": "8", "direction": 1, "zero_offset_rad": 0.0, "limit_rad": [-1.047, 1.047]},
+    {"hardware_id": 9, "name": "ring_mcp_forward", "mujoco_joint": "9", "direction": 1, "zero_offset_rad": 0.0, "limit_rad": [-0.314, 2.230]},
+    {"hardware_id": 10, "name": "ring_pip", "mujoco_joint": "10", "direction": 1, "zero_offset_rad": 0.0, "limit_rad": [-0.506, 1.885]},
+    {"hardware_id": 11, "name": "ring_dip", "mujoco_joint": "11", "direction": 1, "zero_offset_rad": 0.0, "limit_rad": [-0.366, 2.042]},
+    {"hardware_id": 12, "name": "thumb_cmc_side", "mujoco_joint": "12", "direction": 1, "zero_offset_rad": 0.0, "limit_rad": [-0.349, 2.094]},
+    {"hardware_id": 13, "name": "thumb_cmc_forward", "mujoco_joint": "13", "direction": 1, "zero_offset_rad": 0.0, "limit_rad": [-0.470, 2.443]},
+    {"hardware_id": 14, "name": "thumb_mcp", "mujoco_joint": "14", "direction": 1, "zero_offset_rad": 0.0, "limit_rad": [-1.200, 1.900]},
+    {"hardware_id": 15, "name": "thumb_ip", "mujoco_joint": "15", "direction": 1, "zero_offset_rad": 0.0, "limit_rad": [-1.340, 1.880]}
+  ],
+  "calibration": {
+    "status": "not_calibrated",
+    "direction_and_zero_offsets_must_be_verified_on_hardware": true
+  }
+}
+

@@ -1,0 +1,4 @@
+[submodule "third_party/LEAP_Hand_Sim"]
+	path = third_party/LEAP_Hand_Sim
+	url = https://github.com/leap-hand/LEAP_Hand_Sim.git
+
