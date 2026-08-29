@@ -15,7 +15,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=8,<9"]
+dev = ["pytest>=8,<9", "h5py>=3.10,<4"]
 
 [project.scripts]
 dexterous-hand-sim = "simulation.run_single_finger:main"
@@ -24,7 +24,7 @@ sts3215-scan = "hardware.scan_sts3215:main"
 leap-calibrate-zero = "hardware.calibrate_zero:main"
 
 [tool.setuptools]
-packages = ["simulation", "hardware"]
+packages = ["simulation", "hardware", "perception"]
 
 [tool.setuptools.package-data]
 simulation = ["models/*.xml"]
