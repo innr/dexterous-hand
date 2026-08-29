@@ -1,0 +1,4 @@
+@PACKAGE_INIT@
+
+include("${CMAKE_CURRENT_LIST_DIR}/dexterous_hand_retargetingTargets.cmake")
+check_required_components(dexterous_hand_retargeting)
