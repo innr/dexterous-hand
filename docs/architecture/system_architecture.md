@@ -1,239 +1,194 @@
-# Dexterous Hand System Architecture Baseline
-
-Status: **Baseline v1**  
-Date: 2026-08-29  
-Scope: software architecture for the LEAP Hand / STS3215 learning platform
+# Dexterous Hand System Architecture
 
 ## 1. Purpose
 
-This document freezes the project-level architecture before further feature implementation. Existing code is treated as the v0 implementation baseline; it is not rewritten merely to match this document. New work should follow the design-doc workflow defined here.
+This document is the project-level architecture baseline for the LEAP-style 16-DOF dexterous hand stack. It separates what exists on `main`, what is currently in flight, and what the target architecture requires. It also freezes the development workflow used for subsequent software tasks.
 
-## 2. Product goal
+The migration principle is conservative: existing working code is not rewritten merely to match documentation. Design documents review existing behavior first, retain compatible implementation, and require changes only where a frozen contract or acceptance criterion is not met.
 
-Build a 16-DOF LEAP Hand software stack that can use the same canonical joint-space interface across MuJoCo simulation and STS3215 hardware, then add ROS 2 integration, human-hand retargeting, and recording/replay for robotics datasets.
+## 2. System scope
 
-The development order is simulation-first and hardware-safe: software behavior should be testable without physical hardware whenever possible.
+The stack is responsible for representing, commanding, simulating, observing, and eventually operating a 16-DOF LEAP Hand-compatible mechanism. The software boundary includes:
 
-## 3. Canonical system boundary
+- official LEAP model integration and MuJoCo simulation;
+- canonical 16-DOF joint representation;
+- position control and shared safety policy;
+- STS3215 transport, calibration, and hardware backend;
+- future ROS 2 integration;
+- future vision-to-hand retargeting;
+- future recording/replay and LeRobot/HDF5 data paths.
+
+Physical commissioning remains outside the software-only acceptance boundary until the required hardware is available.
+
+## 3. Current implementation baseline
+
+### 3.1 On `main`
+
+The current repository already provides the foundations that new work must reuse:
+
+- Python package layout with `simulation` and `hardware` packages;
+- pinned official LEAP Hand simulation repository as a submodule;
+- `config/joint_mapping.json` describing the 16 canonical joints, MuJoCo ordering, STS3215 IDs, limits, direction placeholders, and zero-offset placeholders;
+- a dependency-light STS3215 packet/bus driver;
+- serial scan and zero-capture tooling;
+- tests around the existing model/mapping/STS3215 behavior.
+
+The hardware mapping remains intentionally uncalibrated. Direction signs and zero offsets must not be treated as physically verified values.
+
+### 3.2 In-flight PR #1
+
+PR #1 (`feat: add actuated LEAP simulation control`) is implementation under review, not part of the `main` baseline. It currently introduces behavior spanning all three P0 design areas:
+
+- temporary conversion/augmentation of the official LEAP URDF into an actuated MuJoCo model;
+- 16 canonical position actuators and PD configuration;
+- target velocity limiting, force limits, joint-limit projection, and simulation home pose;
+- canonical joint-position <-> STS3215 tick conversion;
+- a calibration-gated hardware controller and explicit torque operations;
+- additional simulation and hardware-controller tests.
+
+Because this PR crosses Designs 001, 002, and 003, it must not be approved merely because one of those designs has been reviewed. All affected P0 contracts must be frozen first.
+
+## 4. Canonical 16-DOF contract
+
+The system uses one canonical joint vector for all application-facing interfaces. A joint position command or state is a vector of 16 radians ordered by canonical LEAP/hardware ID `0..15`.
+
+Backend-specific ordering is an implementation detail. MuJoCo qpos ordering must be translated at the simulation boundary. STS3215 IDs, directions, encoder offsets, and tick conversion must be translated at the hardware boundary. Higher-level modules must not duplicate these reorder/conversion rules.
+
+The mapping configuration is the authoritative metadata source for joint identity and configured limits. Simulation-only defaults such as a MuJoCo home pose must remain explicitly distinct from calibrated physical zero offsets.
+
+## 5. Target architecture
 
 ```text
-Human input / policy / replay
-            |
-            v
-      Retargeting / command source
-            |
-            v
-   Canonical 16-DOF joint command
-            |
-     +------+------+
-     |             |
-     v             v
- Safety layer   State/recording
-     |
-     v
- Control backend abstraction
-     |
- +---+------------------+
- |                      |
- v                      v
-MuJoCo backend      STS3215 backend
- |                      |
- v                      v
-LEAP model          Physical LEAP hand
+Command Sources
+  CLI / tests / future ROS 2 / future retargeting / replay
+                         |
+                         v
+                Canonical 16-DOF API
+                         |
+                         v
+                  Shared Safety Policy
+             limits / rate / validity / stop
+                         |
+                         v
+                   Backend Interface
+                    /             \
+                   v               v
+          MuJoCo Backend      STS3215 Backend
+          reorder + ctrl      calibration + ticks
+                   |               |
+                   v               v
+              Simulation       Serial bus
+
+Canonical state ---------------------------------> recording / ROS 2
 ```
 
-The **canonical 16-DOF joint vector** is the architectural contract between command sources, simulation, hardware, ROS 2, and future data pipelines. Hardware ID / official LEAP order is the current canonical ordering. MuJoCo-specific ordering must be translated at the simulation boundary.
+The architecture deliberately keeps command producers independent from simulation and hardware details. A producer should be able to emit the same canonical target regardless of backend.
 
-## 4. Current implementation baseline (`main`)
+## 6. Layer responsibilities
 
-### Implemented
+### 6.1 Configuration and joint model
 
-- Python package with MuJoCo, NumPy, pyserial and pytest.
-- Pinned official `LEAP_Hand_Sim` repository as a git submodule.
-- Official LEAP URDF loading.
-- Explicit MuJoCo-joint-order to canonical/hardware-order conversion.
-- `config/joint_mapping.json` containing 16 joint names, hardware IDs, model joint names, directions, zero offsets and position limits.
-- Dependency-light STS3215 packet protocol implementation.
-- STS3215 ping, scan, register read/write, position read/write and torque control.
-- Serial scan and zero-capture utilities.
-- Unit tests for simulation loading, joint mapping and STS3215 protocol behavior.
+Owns joint names, canonical ordering, limits, backend mapping, calibration metadata, and validated control parameters. Invalid mappings must fail before commands reach a backend.
 
-### Intentionally unresolved until hardware commissioning
+### 6.2 Shared safety/control contract
 
-- Real servo direction signs.
-- Mechanical zero offsets.
-- Verified physical joint limits.
-- Real serial timing/reliability characteristics.
+Owns validation of command shape and finite numeric values, joint-limit enforcement, velocity/rate policy, home/stop semantics, and the rules that determine whether motion or torque may be enabled.
 
-These values must never be inferred from simulation alone.
+Safety rules should be testable without physical hardware. Disabling torque or entering a safe stopped state must remain possible during recovery even when normal motion is rejected.
 
-## 5. In-flight implementation: PR #1
+### 6.3 MuJoCo backend
 
-PR #1 (`feat: add actuated LEAP simulation control`) is not part of `main` until merged. It currently proposes:
+Owns official-model loading/conversion, MuJoCo joint/actuator lookup, canonical <-> simulator ordering, actuator parameterization, and application of validated canonical targets. It must not redefine application-level joint identity.
 
-- generated actuated MuJoCo model with 16 position actuators;
-- canonical-order PD position control;
-- joint-limit projection and target velocity limiting;
-- actuator force limits;
-- simulation home pose;
-- calibration-gated canonical joint-radian to STS3215-tick conversion;
-- a `LeapHandBusController` hardware bridge;
-- CI running pytest and a headless LEAP simulation smoke test.
+### 6.4 STS3215 backend
 
-PR #1 should be reviewed against the first two P0 design requirements before merge. Its implementation should be reused where it satisfies the frozen design rather than recreated.
+Owns serial protocol details, encoder/tick conversion, servo-ID mapping, calibration transforms, read/write operations, and hardware-specific failure reporting. Hardware motion and torque enable remain calibration-gated unless an explicitly defined bench/test override is used.
 
-## 6. Target software layers
+### 6.5 ROS 2 interface (target)
 
-### 6.1 Configuration / model contract
+Will expose canonical `joint_command` and `joint_states` interfaces. ROS-specific message transport must not own mapping or hardware conversion logic.
 
-Owns canonical joint metadata and configuration:
+### 6.6 Retargeting (target)
 
-- joint identity and ordering;
-- simulation mapping;
-- hardware ID mapping;
-- calibrated direction and zero offset;
-- position/velocity constraints;
-- safe home pose;
-- controller parameters.
+Will convert MediaPipe/other hand observations into canonical LEAP 16-DOF targets. Retargeting output must pass through the same safety/control contract as any other command source.
 
-Configuration must distinguish **simulation assumptions** from **hardware-calibrated values**.
+### 6.7 Data pipeline (target)
 
-### 6.2 Command and safety layer
-
-All motion commands must pass through one common validation path before reaching a backend.
-
-Responsibilities:
-
-- shape/order validation;
-- finite-value validation;
-- position limits;
-- velocity/rate limits;
-- home pose;
-- watchdog / command timeout;
-- emergency-stop state;
-- explicit torque-enable semantics for hardware.
-
-Safety policy must not be duplicated independently in ROS 2, teleoperation, and hardware scripts.
-
-### 6.3 Backend interface
-
-Simulation and physical hardware should converge on a small conceptual interface:
-
-```python
-command_positions(q_target_rad)
-read_positions() -> q_rad
-set_torque(enabled)          # hardware-capable backends
-stop()                       # safe backend stop
-```
-
-The exact Python API will be frozen in the relevant Design Doc before refactoring existing code.
-
-### 6.4 MuJoCo backend
-
-Responsibilities:
-
-- load the pinned official LEAP model;
-- expose canonical 16-DOF state/command ordering;
-- apply position/PD control;
-- respect configured position, velocity and actuator-force constraints;
-- support deterministic headless tests.
-
-MuJoCo ordering is an implementation detail and must not leak into higher layers.
-
-### 6.5 STS3215 backend
-
-Responsibilities:
-
-- transport and packet protocol;
-- deterministic errors for timeout, checksum/protocol errors and servo status errors;
-- canonical radians <-> servo ticks conversion using calibrated mapping;
-- multi-servo command/state operations;
-- explicit torque control;
-- no physical motion when calibration requirements are not satisfied.
-
-A virtual STS3215 transport/bus must exercise these semantics before hardware is available.
-
-### 6.6 ROS 2 adapter (planned)
-
-ROS 2 is an adapter around the canonical command/state API, not the owner of hardware semantics.
-
-Initial external contract:
-
-- `joint_command`: canonical 16-DOF command;
-- `joint_states`: canonical measured/simulated state.
-
-Detailed message types, QoS, rates, lifecycle and e-stop behavior require a dedicated Design Doc.
-
-### 6.7 Retargeting (planned)
-
-MediaPipe hand landmarks are converted into canonical LEAP joint targets. Retargeting must not directly address servo IDs or MuJoCo indices.
-
-### 6.8 Recording / replay (planned)
-
-Recording consumes canonical states/commands plus sensor streams and preserves timestamps. rosbag2 / HDF5 / LeRobot conversion belongs above the control backend and must remain usable with simulation.
+Will record/replay canonical commands/states plus timestamps and relevant metadata. LeRobot/HDF5 serialization remains downstream of the canonical representation.
 
 ## 7. Dependency direction
 
-Preferred dependency direction:
+Dependencies flow downward toward configuration, canonical contracts, and backend primitives. Higher-level applications may depend on lower layers; low-level transport must not depend on ROS 2, MediaPipe, or dataset code.
+
+A desired dependency shape is:
 
 ```text
-applications / ROS2 / retargeting / recorder
+applications / ROS2 / retargeting / replay
                  |
                  v
-        canonical command + safety
+       canonical control + safety
                  |
-                 v
-          backend interfaces
-            /          \
-           v            v
-      simulation      hardware
+          +------+------+
+          |             |
+          v             v
+     simulation      hardware
+          |             |
+          v             v
+       MuJoCo        STS3215
+                 
+configuration / joint mapping is consumed by the relevant lower layers
 ```
 
-Protocol-level STS3215 code must not depend on ROS 2, MediaPipe or LeRobot. Simulation must not depend on serial hardware.
+## 8. Safety and calibration invariants
 
-## 8. Development workflow (mandatory for new feature work)
+The following are architecture-level invariants and require explicit design review before being weakened:
 
-Every feature follows:
+- uncalibrated hardware must not accept ordinary motion commands;
+- enabling torque must be explicit and subject to calibration policy;
+- torque disable/recovery must remain available even when calibration or command validation fails;
+- safe goal state must be established before torque activation when required by the hardware command design;
+- joint direction must be validated as exactly `-1` or `+1` before calibrated conversion is trusted;
+- non-finite commands/configuration values must be rejected at validation boundaries;
+- simulation home pose is not a substitute for hardware calibration;
+- all application-facing positions use radians in canonical order;
+- backend conversion/reordering must have deterministic tests.
+
+Exact behavior is frozen in Designs 001-003 rather than inferred from the current implementation.
+
+## 9. Development workflow
+
+Every implementation task follows this lifecycle:
 
 ```text
-Requirement
-  -> ChatGPT architecture/technical discussion
-  -> Design Doc
-  -> Design review / freeze
-  -> Codex implementation
-  -> tests / simulation validation
-  -> one feature PR
+Backlog
+  -> ChatGPT design discussion
+  -> Design Doc (Draft)
+  -> Design review
+  -> Design Doc (Frozen)
+  -> Codex implementation against frozen contract
+  -> automated tests / simulation validation
+  -> one task / one PR
   -> spec-based review
   -> merge
+  -> next task
 ```
 
-Rules:
+If implementation reveals a material architecture problem, the design returns to Draft/Review before the implementation contract changes. Codex should not silently make major architecture decisions while implementing a frozen design.
 
-1. One scoped feature should normally map to one Design Doc and one implementation PR.
-2. Codex should implement the frozen contract rather than redesign core architecture during coding.
-3. Every Design Doc must contain explicit Acceptance Criteria.
-4. If implementation exposes an architectural flaw, update/review the Design Doc before making a major architectural deviation.
-5. PR descriptions must state the Design Doc, implementation summary, validation commands/results, and remaining limitations.
-6. Hardware-dependent assumptions must be labeled and must not be marked verified until tested on hardware.
+Each Design Doc must contain:
 
-## 9. Design Doc template
-
-Each `docs/designs/NNN_*.md` should contain at minimum:
-
-- Status: Draft / Reviewed / Frozen / Implemented
-- Context
-- Goals
-- Non-goals
-- Existing behavior
-- Proposed architecture
-- Public interfaces / data structures
-- Configuration changes
-- Safety and failure behavior
-- Testing strategy
-- Acceptance Criteria
-- Hardware dependencies
-- Alternatives / trade-offs
-- Implementation notes for Codex
+- Context / problem;
+- Goals;
+- Non-goals;
+- Current behavior / reuse plan;
+- proposed architecture;
+- public interfaces and data structures;
+- configuration;
+- safety and failure behavior;
+- testing strategy;
+- Acceptance Criteria;
+- alternatives / trade-offs;
+- implementation notes for Codex.
 
 ## 10. Ordered design backlog
 
@@ -250,7 +205,7 @@ The current software backlog is frozen in this order unless a dependency require
 | 007 | P2 | Recording, replay and LeRobot/HDF5 pipeline | No |
 | 008 | P3 | Real serial scan, direction verification, zero calibration and physical motion | Yes |
 
-Because PR #1 already overlaps 001 and part of 002/003, those designs must first document and review the existing implementation instead of blindly generating replacement code.
+Because PR #1 already overlaps 001, 002, and 003, those designs must first document and review the existing implementation instead of blindly generating replacement code.
 
 ## 11. Architecture decisions frozen by this baseline
 
@@ -263,6 +218,8 @@ Because PR #1 already overlaps 001 and part of 002/003, those designs must first
 - ROS 2, retargeting and recording sit above the canonical control contract.
 - Hardware-independent functionality should have deterministic tests before physical commissioning.
 
-## 12. Immediate next step
+## 12. Immediate next step and PR #1 merge gate
 
-Create and review `docs/designs/001_mujoco_pd_control.md` against PR #1. The goal is to decide which PR #1 behavior becomes the frozen contract, identify any gaps, then either amend PR #1 or approve it. Do not start Design 004/005 implementation until the overlapping P0 contracts are reviewed.
+Create and review `docs/designs/001_mujoco_pd_control.md`, `002_safety_limits.md`, and `003_joint_mapping.md` against the behavior already present in PR #1. Each design should explicitly decide which existing behavior is retained, identify gaps, and freeze its Acceptance Criteria.
+
+**PR #1 must not be approved or merged until Designs 001, 002, and 003 are all reviewed and frozen and PR #1 has been checked against all three contracts.** If gaps exist, amend PR #1 and rerun the required tests before approval. Do not start Design 004/005 implementation until this overlapping P0 review is complete.
