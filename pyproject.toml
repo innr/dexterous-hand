@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "dexterous-hand"
+version = "0.1.0"
+description = "Dexterous hand simulation and control experiments"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+  "mujoco>=3.1,<4",
+  "numpy>=1.26,<3",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8,<9"]
+
+[project.scripts]
+dexterous-hand-sim = "simulation.run_single_finger:main"
+
+[tool.setuptools]
+packages = ["simulation"]
+
+[tool.setuptools.package-data]
+simulation = ["models/*.xml"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
