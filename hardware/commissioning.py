@@ -92,7 +92,12 @@ def validate_mapping(mapping: Mapping[str, Any]) -> None:
             raise CommissioningError("mapping joint entry is invalid") from exc
         if servo_id in ids or not 0 <= servo_id <= 253:
             raise CommissioningError("mapping hardware IDs must be unique and in [0, 253]")
-        if direction not in (-1, 1) or len(limits) != 2 or limits[0] > limits[1]:
+        if (
+            direction not in (-1, 1)
+            or not isinstance(limits, (list, tuple))
+            or len(limits) != 2
+            or limits[0] > limits[1]
+        ):
             raise CommissioningError(f"invalid limits or direction for hardware ID {servo_id}")
         if not math.isfinite(offset):
             raise CommissioningError(f"invalid zero offset for hardware ID {servo_id}")
@@ -164,8 +169,13 @@ def apply_calibration(
             "calibration application requires explicit confirmation; review the capture first"
         )
     candidates = calibration_candidates(mapping, capture)
-    if mark_verified and any("direction" not in candidate for candidate in candidates):
-        raise CommissioningError("cannot mark calibration verified without direction results")
+    if mark_verified and (
+        len(candidates) != 16
+        or any("direction" not in candidate for candidate in candidates)
+    ):
+        raise CommissioningError(
+            "cannot mark calibration verified without direction results for all 16 joints"
+        )
     updated = deepcopy(dict(mapping))
     joints_by_id = {int(joint["hardware_id"]): joint for joint in updated["joints"]}
     for candidate in candidates:
