@@ -22,6 +22,9 @@ dexterous-hand-sim = "simulation.run_single_finger:main"
 dexterous-hand-leap-check = "simulation.run_leap_hand:main"
 sts3215-scan = "hardware.scan_sts3215:main"
 leap-calibrate-zero = "hardware.calibrate_zero:main"
+dexterous-hand-ports = "hardware.ports:main"
+leap-apply-calibration = "hardware.apply_calibration:main"
+sts3215-motion-test = "hardware.motion_test:main"
 
 [tool.setuptools]
 packages = ["simulation", "hardware"]
