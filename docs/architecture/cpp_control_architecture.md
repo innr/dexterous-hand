@@ -1,56 +1,58 @@
-# LEAP dexterous hand: S1–S3 C++ architecture
+# LEAP dexterous hand — C++ S1–S3 layered architecture
 
-The existing Python simulation and hardware files remain unchanged. The new `cpp/` module is a separate C++17 educational reference implementation.
-
-```text
-ROS2 / teleoperation [S4, planned]
-            |
-      desired positions
-            v
-JointTrajectoryPlanner [S3]
-  -> TrajectoryState
-  -> AccelerationLimiter
-  -> stopping-distance and candidate checks
-            |
-            v
-PDController + SafetyStateMachine [S3]
-            |
-            v
-RobotController -> RobotHand -> RobotJoint [S1/S2]
-            |
-            v
-IBus -> MockBus [implemented]
-     -> STS3215Bus [NOT implemented]
-```
-
-## Component responsibilities
-
-| Component | Purpose |
-|---|---|
-| RobotJoint | joint ID, position clamp |
-| RobotHand | 16 commanded joint positions |
-| RobotController | owns bus with unique_ptr, synchronous command send |
-| PDController | PD control effort from target and measured state |
-| JointTrajectoryPlanner | nominal speed/acceleration-limited position planning |
-| SafetyStateMachine | NORMAL, DEGRADED, SAFE_STOP, FAULT demo transitions |
-
-## S4 target architecture (not implemented)
+## Dependency flow
 
 ```text
-100 Hz control task (10 ms)
-   |                     ^
-   v                     |
-safety gate       timestamped feedback snapshot
-   |                     ^
-   v                     |
-latest command mailbox   |
-   |                     |
-   v                     |
-STS3215 communication worker (~11.2 ms polling)
+Application / examples
+         |
+         v
+control/JointTrajectoryPlanner ---> control/AccelerationLimiter
+         |                                   |
+         +----------------> control/TrajectoryMath
+         |
+         v
+control/PDController     safety/SafetyStateMachine
+         |                          |
+         +-----------+--------------+
+                     |
+                     v
+           control/RobotController
+                |           |
+                v           v
+          core/RobotHand   bus/IBus (interface)
+                |           |
+                v           v
+          core/RobotJoint  bus/MockBus (test only)
 ```
 
-Use timestamped feedback, data-age checks, bounded command queues, stop-priority protocol and in-flight TX accounting. The current synchronous controller cannot meet the proposed real-time architecture by itself.
+The C++ source tree follows `include/robot/{core,control,safety,bus}` and `src/{core,control,safety,bus}`. Every implementation lives in its own `.cpp` translation unit. The umbrella `robot_core.hpp` is a compatibility header only.
 
-## Limitations
+## Responsibilities
 
-The trajectory planner is a reconstructed nominal V2 example, not a proven safe trajectory generator. Braking feasibility checks do not guarantee a feasible candidate or latency safety. `RobotController` records commanded position, not measured feedback. No hardware E-stop, watchdog, bus adapter, ROS2 or MuJoCo integration is implemented here.
+| Layer | Responsibilities | Does not own |
+|---|---|---|
+| core | 16 joint IDs, commanded position, limits | bus I/O |
+| control | PD, speed/acceleration constraints, trajectory, controller orchestration | serial protocol |
+| safety | NORMAL/DEGRADED/SAFE_STOP/FAULT demonstration | hardware power cutoff |
+| bus | abstract send interface, mock adapter | motion planning |
+| examples/tests | wiring, unit/regression checks | production scheduling |
+
+## S4 planned, NOT implemented
+
+```text
+ROS2 / teleoperation command
+         |
+         v
+100 Hz control worker --> safety gate --> latest-command mailbox
+         ^                                   |
+         |                                   v
+timestamped feedback snapshot <-- STS3215 communication worker
+```
+
+16-servo polling (~11.2 ms) can exceed the 10 ms control period. S4 must avoid blocking the control loop on full feedback, validate feedback age, and define stop-priority/in-flight TX semantics.
+
+## Validation
+
+Build with `cmake -S cpp -B build/cpp -DCMAKE_BUILD_TYPE=Debug`, then `cmake --build build/cpp` and `ctest --test-dir build/cpp --output-on-failure`.
+
+The S3 overshoot metric is diagnostic; it is **not** proof of safety or target convergence. The synchronous `RobotController` tracks commands, not physical feedback. The actual STS3215 hardware interface is not present.
