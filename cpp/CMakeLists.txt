@@ -3,12 +3,22 @@ project(dexterous_hand_cpp LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
-add_library(robot_core INTERFACE)
-target_include_directories(robot_core INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/include)
+add_library(robot_core STATIC
+    src/core/RobotJoint.cpp
+    src/core/RobotHand.cpp
+    src/bus/MockBus.cpp
+    src/control/RobotController.cpp
+    src/control/PDController.cpp
+    src/control/TrajectoryMath.cpp
+    src/control/AccelerationLimiter.cpp
+    src/control/JointTrajectoryPlanner.cpp
+    src/safety/SafetyStateMachine.cpp
+)
+target_include_directories(robot_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 if(MSVC)
-  target_compile_options(robot_core INTERFACE /W4)
+    target_compile_options(robot_core PRIVATE /W4)
 else()
-  target_compile_options(robot_core INTERFACE -Wall -Wextra -Wpedantic)
+    target_compile_options(robot_core PRIVATE -Wall -Wextra -Wpedantic -Werror)
 endif()
 add_executable(robot_control_demo examples/robot_control_demo.cpp)
 target_link_libraries(robot_control_demo PRIVATE robot_core)
