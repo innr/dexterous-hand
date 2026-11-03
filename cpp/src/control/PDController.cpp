@@ -1,3 +1,4 @@
+// S3 | Proportional error correction with velocity damping.
 #include "robot/control/PDController.hpp"
 #include <cmath>
 #include <stdexcept>
@@ -7,6 +8,7 @@ PDController::PDController(float kp, float kd) : kp_(kp), kd_(kd) {
         throw std::invalid_argument("invalid gain");
 }
 float PDController::update(float target_pos, float measured_pos, float measured_vel) const {
+    // Derivative term uses measured velocity, avoiding target-step derivative kick.
     return kp_ * (target_pos - measured_pos) - kd_ * measured_vel;
 }
 } // namespace robot
