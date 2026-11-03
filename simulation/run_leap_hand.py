@@ -1,4 +1,4 @@
-"""Run a minimal headless check against the official 16-DOF LEAP model."""
+"""针对官方 16-DOF LEAP 模型运行一个最小化的无界面检查。"""
 
 from __future__ import annotations
 
@@ -15,12 +15,14 @@ def run(*, seconds: float, project_root: Path) -> None:
     import mujoco
 
     data = mujoco.MjData(model)
-    # The official URDF has no actuators. Hold the model at its zero pose and
-    # report the reordered state; hardware control is added after calibration.
+    # 官方 URDF 没有执行器。保持零位姿并输出重排后的状态；
+    # 硬件控制将在标定之后再接入。
     steps = max(1, round(seconds / model.opt.timestep))
     for _ in range(steps):
         mujoco.mj_step(model, data)
-    hardware_qpos = reorder_sim_to_hardware(data.qpos, model, load_mapping(project_root / "config" / "joint_mapping.json"))
+    hardware_qpos = reorder_sim_to_hardware(
+        data.qpos, model, load_mapping(project_root / "config" / "joint_mapping.json")
+    )
     print(f"loaded official LEAP model: nq={model.nq}, njnt={model.njnt}, nu={model.nu}")
     print(f"simulated {data.time:.3f}s; hardware-order qpos={np.round(hardware_qpos, 3)}")
 

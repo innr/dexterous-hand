@@ -1,3 +1,5 @@
+"""关节映射配置与重排顺序的测试。"""
+
 import json
 from pathlib import Path
 
@@ -7,6 +9,7 @@ from simulation.leap_hand_model import MAPPING_PATH, reorder_sim_to_hardware
 
 
 def test_mapping_has_official_16_joint_order() -> None:
+    """映射应包含 16 个关节，且硬件 ID 与 MuJoCo 关节均按 0..15 排列。"""
     mapping = json.loads(Path(MAPPING_PATH).read_text(encoding="utf-8"))
     joints = mapping["joints"]
     assert len(joints) == 16
@@ -15,11 +18,11 @@ def test_mapping_has_official_16_joint_order() -> None:
 
 
 def test_reorder_matches_observed_mujoco_urdf_order() -> None:
+    """按文档记录的置换直接验证重排映射的契约。"""
     class FakeModel:
         njnt = 16
 
-    # Patch-free fake is not enough for name lookup, so test the documented
-    # permutation directly against the source mapping contract.
+    # 仅靠 fake 无法做名称查找，因此直接对照源映射的置换契约来验证。
     mapping = json.loads(Path(MAPPING_PATH).read_text(encoding="utf-8"))
     sim_names = mapping["model"]["mujoco_joint_order_observed"]
     expected = np.arange(16, dtype=float)
@@ -28,4 +31,3 @@ def test_reorder_matches_observed_mujoco_urdf_order() -> None:
         hardware_id = int(source_joint)
         output[hardware_id] = expected[sim_index]
     np.testing.assert_array_equal(output, [1, 0, 2, 3, 5, 4, 6, 7, 9, 8, 10, 11, 12, 13, 14, 15])
-

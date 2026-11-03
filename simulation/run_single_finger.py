@@ -1,4 +1,4 @@
-"""Run the first four-joint single-finger MuJoCo experiment."""
+"""运行首个四关节单指 MuJoCo 实验。"""
 
 from __future__ import annotations
 
@@ -13,7 +13,8 @@ MODEL_PATH = Path(__file__).with_name("models") / "single_finger.xml"
 
 
 def target_positions(elapsed: float) -> np.ndarray:
-    """Return a smooth four-joint flexion target in radians."""
+    """返回四个关节的平滑屈曲目标角（弧度）。"""
+    # 用余弦曲线在张开与闭合姿态之间平滑过渡，周期 4 秒。
     phase = 0.5 - 0.5 * np.cos(2.0 * np.pi * elapsed / 4.0)
     open_pose = np.array([0.0, 0.05, 0.05, 0.05])
     closed_pose = np.array([0.35, 1.05, 1.15, 0.85])
@@ -27,6 +28,7 @@ def run(*, seconds: float, headless: bool) -> None:
     data = mujoco.MjData(model)
     duration = seconds if seconds > 0 else float("inf")
 
+    # 无界面模式：按固定步长推进到指定时长。
     if headless:
         while data.time < duration:
             data.ctrl[:] = target_positions(data.time)
@@ -34,6 +36,7 @@ def run(*, seconds: float, headless: bool) -> None:
         print(f"completed {data.time:.2f}s; qpos={np.round(data.qpos, 3)}")
         return
 
+    # 带界面模式：实时渲染，并按物理步长补偿休眠以贴近真实时间。
     import mujoco.viewer
 
     started = time.monotonic()
@@ -69,4 +72,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

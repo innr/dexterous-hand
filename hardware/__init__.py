@@ -1,2 +1,1 @@
-"""Hardware communication and calibration utilities."""
-
+"""硬件通信与标定工具。"""

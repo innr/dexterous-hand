@@ -1,2 +1,1 @@
-"""Simulation experiments for the dexterous-hand project."""
-
+"""灵巧手项目的仿真实验。"""

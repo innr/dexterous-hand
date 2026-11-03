@@ -1,4 +1,4 @@
-"""Scan a range of STS3215 IDs without enabling torque or moving a servo."""
+"""扫描一段 STS3215 ID 范围，不使能扭矩、不驱动舵机。"""
 
 from __future__ import annotations
 
@@ -8,6 +8,7 @@ from .sts3215 import STS3215Bus, STS3215Error
 
 
 def parse_ids(value: str) -> list[int]:
+    """解析逗号分隔的舵机 ID 列表，并校验取值范围 0..253。"""
     ids = [int(item.strip()) for item in value.split(",") if item.strip()]
     if not ids or any(not 0 <= item <= 253 for item in ids):
         raise argparse.ArgumentTypeError("IDs must be comma-separated integers from 0 to 253")
@@ -31,4 +32,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

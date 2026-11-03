@@ -1,4 +1,4 @@
-"""Capture STS3215 encoder readings for a reviewed zero calibration."""
+"""采集 STS3215 编码器读数，生成可人工复核的零位标定结果。"""
 
 from __future__ import annotations
 
@@ -14,7 +14,10 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 MAPPING_PATH = PROJECT_ROOT / "config" / "joint_mapping.json"
 
 
-def capture_positions(bus: STS3215Bus, mapping: dict, ids: list[int], reference_ticks: int) -> dict:
+def capture_positions(
+    bus: STS3215Bus, mapping: dict, ids: list[int], reference_ticks: int
+) -> dict:
+    """读取指定 ID 的当前位置，整理成标定记录字典。"""
     joints_by_id = {int(joint["hardware_id"]): joint for joint in mapping["joints"]}
     observations = []
     for servo_id in ids:
@@ -40,6 +43,7 @@ def capture_positions(bus: STS3215Bus, mapping: dict, ids: list[int], reference_
 
 
 def parse_ids(value: str) -> list[int]:
+    """解析逗号分隔的舵机 ID 列表，并校验取值范围 0..253。"""
     ids = [int(item.strip()) for item in value.split(",") if item.strip()]
     if not ids or any(not 0 <= item <= 253 for item in ids):
         raise argparse.ArgumentTypeError("IDs must be comma-separated integers from 0 to 253")
@@ -58,6 +62,7 @@ def main() -> None:
     args = parser.parse_args()
     mapping = json.loads(args.mapping.read_text(encoding="utf-8"))
 
+    # 只读取位置，不使能扭矩、不驱动舵机。
     try:
         with STS3215Bus(args.port, baudrate=args.baudrate, timeout=args.timeout) as bus:
             result = capture_positions(bus, mapping, args.ids, args.reference_ticks)
@@ -72,4 +77,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
