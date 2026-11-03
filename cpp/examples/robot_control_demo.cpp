@@ -1,3 +1,4 @@
+// S1-S3 demo | Mock transport and trajectory stepping; NOT real 100 Hz scheduling.
 #include "robot/robot_core.hpp"
 #include <iostream>
 #include <memory>

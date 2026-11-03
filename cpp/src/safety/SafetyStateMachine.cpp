@@ -1,3 +1,4 @@
+// S3 | State transitions only; no concurrency, watchdog or power isolation here.
 #include "robot/safety/SafetyStateMachine.hpp"
 namespace robot {
 SafetyState SafetyStateMachine::state() const { return state_; }

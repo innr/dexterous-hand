@@ -1,3 +1,5 @@
+// S3 | Discrete planner: desired velocity -> acceleration limiter -> state integration.
+// The current educational algorithm does not guarantee zero overshoot.
 #include "robot/control/JointTrajectoryPlanner.hpp"
 #include <cmath>
 #include <stdexcept>
