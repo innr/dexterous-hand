@@ -1,4 +1,7 @@
 #pragma once
+// S3 | Stateful single-joint position planner with bounded velocity changes.
+// update() advances one discrete dt step; target can change between calls.
+// Current planner is educational: no proven overshoot/settling guarantees.
 #include "robot/control/AccelerationLimiter.hpp"
 #include "robot/control/TrajectoryMath.hpp"
 namespace robot {

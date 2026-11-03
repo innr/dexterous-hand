@@ -1,3 +1,4 @@
+// S1-S3 regression | Joint limits, bus failures, PD math, trajectory constraints, safety.
 #include "robot/robot_core.hpp"
 #include <cassert>
 #include <cmath>

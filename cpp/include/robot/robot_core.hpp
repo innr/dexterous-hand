@@ -1,4 +1,6 @@
 #pragma once
+// Compatibility umbrella: includes public modules but contains no implementations.
+// New code should include the narrow robot/<layer>/<Class>.hpp header.
 // Compatibility facade. Prefer importing only the module header you need.
 #include "robot/core/RobotJoint.hpp"
 #include "robot/core/RobotHand.hpp"

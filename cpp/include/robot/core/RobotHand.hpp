@@ -1,4 +1,7 @@
 #pragma once
+// S1 | Container for 16 independently limited joints.
+// Public accessors use bounds-checked indexing; invalid IDs throw.
+
 #include "robot/core/RobotJoint.hpp"
 #include <cstddef>
 #include <vector>

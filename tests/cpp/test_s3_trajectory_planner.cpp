@@ -1,3 +1,4 @@
+// S3 regression | 500-step checks; overshoot is logged, not an acceptance threshold.
 // S3 lessons 39-40: trajectory planner regression checks.
 // Builds against cpp/include/JointTrajectoryPlanner.h.
 // Build with CMake in Debug mode so standard assert() remains enabled.

@@ -1,3 +1,4 @@
+// S3 | Limit change of velocity per update; state is retained between calls.
 #include "robot/control/AccelerationLimiter.hpp"
 #include "robot/control/TrajectoryMath.hpp"
 #include <algorithm>

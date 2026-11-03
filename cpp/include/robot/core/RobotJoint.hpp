@@ -1,4 +1,7 @@
 #pragma once
+// S1 | Single-joint model: validates ID/limits and clamps commanded position.
+// getPosition() returns the last commanded value, not encoder feedback.
+
 namespace robot {
 inline constexpr int kJointCount = 16;
 class RobotJoint {

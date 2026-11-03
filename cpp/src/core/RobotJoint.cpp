@@ -1,3 +1,4 @@
+// S1 | Joint construction and command clamping; no sensor reads occur here.
 #include "robot/core/RobotJoint.hpp"
 #include <algorithm>
 #include <cmath>
@@ -8,6 +9,7 @@ RobotJoint::RobotJoint(int id, float min_deg, float max_deg)
     if (id < 0 || id >= kJointCount || !std::isfinite(min_deg) ||
         !std::isfinite(max_deg) || min_deg > max_deg)
         throw std::invalid_argument("invalid joint limits/id");
+    // Initialize zero position within the configured mechanical limits.
     position_ = std::clamp(0.0f, min_, max_);
 }
 int RobotJoint::getId() const { return id_; }
@@ -15,6 +17,7 @@ float RobotJoint::getPosition() const { return position_; }
 float RobotJoint::clamp(float value) const { return std::clamp(value, min_, max_); }
 void RobotJoint::setPosition(float value) {
     if (!std::isfinite(value)) throw std::invalid_argument("nonfinite joint command");
+    // Reject NaN/Inf above; std::clamp alone does not validate them.
     position_ = clamp(value);
 }
 } // namespace robot

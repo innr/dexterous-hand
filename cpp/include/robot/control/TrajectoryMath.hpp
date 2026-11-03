@@ -1,4 +1,7 @@
 #pragma once
+// S3 | Pure trajectory math and feasibility predicates (units: deg, deg/s, deg/s^2).
+// Braking predicates are local checks, NOT a guarantee of safe arrival.
+// All time arguments are in seconds; use dt=0.01f for a nominal 100 Hz step.
 namespace robot {
 struct TrajectoryState {
     float position_deg = 0.0f;

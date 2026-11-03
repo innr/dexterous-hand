@@ -1,4 +1,7 @@
 #pragma once
+// S2 | Owns IBus via unique_ptr: the controller is responsible for its lifetime.
+// Synchronous send is for learning/testing; S4 must move bus I/O off the control thread.
+
 #include "robot/bus/IBus.hpp"
 #include "robot/core/RobotHand.hpp"
 #include <cstddef>
