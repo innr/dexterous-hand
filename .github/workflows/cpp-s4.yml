@@ -1,0 +1,19 @@
+name: C++ S4 tests
+on:
+  push:
+    branches: [main, "feat/s4-*"]
+  pull_request:
+    paths:
+      - "cpp/**"
+      - ".github/workflows/cpp-s4.yml"
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure
+        run: cmake -S cpp -B build/cpp -DCMAKE_BUILD_TYPE=Debug
+      - name: Build
+        run: cmake --build build/cpp --parallel
+      - name: Test
+        run: ctest --test-dir build/cpp --output-on-failure
