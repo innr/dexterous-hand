@@ -1,27 +1,44 @@
-# C++17 robot control learning core (S1–S3)
+# S1–S3 C++17 layered control core
 
-Standalone educational baseline reconstructed from S1–S3 exercises. It does not replace the existing Python simulation or reproduce unprovided historical local files verbatim.
+The C++ teaching code now uses **separate public headers and .cpp implementations** instead of a monolithic header.
 
-## Architecture
+## Layout
 
 ```text
 cpp/
-  CMakeLists.txt
-  include/JointTrajectoryPlanner.h
-  include/robot/robot_core.hpp
-  examples/robot_control_demo.cpp
-  tests/test_robot_core.cpp
+├── include/robot/
+│   ├── core/      RobotJoint.hpp, RobotHand.hpp
+│   ├── bus/       IBus.hpp, MockBus.hpp
+│   ├── control/   RobotController.hpp, PDController.hpp,
+│   │              TrajectoryMath.hpp, AccelerationLimiter.hpp,
+│   │              JointTrajectoryPlanner.hpp
+│   └── safety/    SafetyStateMachine.hpp
+├── src/
+│   ├── core/      RobotJoint.cpp, RobotHand.cpp
+│   ├── bus/       MockBus.cpp
+│   ├── control/   RobotController.cpp, PDController.cpp,
+│   │              TrajectoryMath.cpp, AccelerationLimiter.cpp,
+│   │              JointTrajectoryPlanner.cpp
+│   └── safety/    SafetyStateMachine.cpp
+├── examples/robot_control_demo.cpp
+├── tests/test_robot_core.cpp
+└── CMakeLists.txt
 tests/cpp/test_s3_trajectory_planner.cpp
-docs/architecture/cpp_control_architecture.md
 ```
 
-## Build & test
+`robot/robot_core.hpp` and `JointTrajectoryPlanner.h` are **compatibility include shims**, not implementations. Prefer module-specific headers in new code.
 
-```bash
+## Build and test
+
+```sh
 cmake -S cpp -B build/cpp -DCMAKE_BUILD_TYPE=Debug
-cmake --build build/cpp
+cmake --build build/cpp --parallel
 ctest --test-dir build/cpp --output-on-failure
 ./build/cpp/robot_control_demo
 ```
 
-The C++ core is header-only for educational clarity. The synchronous IBus is a mock teaching interface, NOT a real-time 100 Hz hardware bus design. Tests validate finite values, speed and acceleration bounds, joint limits, mock failures, PD math, braking checks, and basic state transitions. Overshoot is measured but not acceptance-tested.
+The library is a **STATIC** CMake target with PUBLIC includes. The demo and two existing regression test executables link against it.
+
+## Scope and limitations
+
+This is a **behavior-preserving organization refactor** of the S1–S3 educational core. The mock bus remains synchronous. The trajectory planner is nominal and is not a verified safe motion planner; braking predicates do not guarantee no overshoot. No STS3215 serial driver, 100 Hz asynchronous scheduler, hardware emergency stop, ROS2 adapter or MuJoCo adapter has been implemented here. Existing Python simulation and hardware code remain unchanged.
