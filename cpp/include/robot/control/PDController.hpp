@@ -1,4 +1,7 @@
 #pragma once
+// S3 | Discrete PD effort: kp * position_error - kd * measured_velocity.
+// The returned value is a control effort, not a position or a serial command.
+
 namespace robot {
 class PDController {
 public:
