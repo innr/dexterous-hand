@@ -35,6 +35,8 @@ private:
     CommandMailbox& mailbox_;
     StopCoordinator& stop_;
     StateEstimator estimator_;
+    // setTargets 可能来自应用线程，tick 来自控制线程，必须同步目标数组。
+    std::mutex targets_mutex_;
     std::array<float, kServoCount> targets_{};
     std::uint64_t sequence_ = 0;
 };
@@ -45,6 +47,8 @@ public:
                         std::chrono::milliseconds max_command_age);
     std::size_t processCommands(ServoClock::time_point now);
     void pollFeedback(ServoClock::time_point now);
+    // 实际通信轮询：每路读操作完成时独立打时间戳。
+    void pollFeedbackRealTime();
 private:
     IServoTransport& bus_;
     FeedbackBuffer& feedback_;
