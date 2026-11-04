@@ -86,9 +86,9 @@ int main() {
     const std::uint8_t valid_status[]={0xff,0xff,1,4,0,0x34,0x12,0xb4};
     assert(sts3215::decodeStatus(valid_status,8,1,status));
     assert(status.param_size==2 && status.params[0]==0x34);
-    auto corrupted=valid_status;
+    std::array<std::uint8_t,8> corrupted{{0xff,0xff,1,4,0,0x34,0x12,0xb4}};
     corrupted[7]^=1;
-    assert(!sts3215::decodeStatus(corrupted,8,1,status));
+    assert(!sts3215::decodeStatus(corrupted.data(),8,1,status));
     assert(!sts3215::decodeStatus(valid_status,8,2,status));
 
     FakePort port;
