@@ -51,13 +51,23 @@ CommunicationWorker::CommunicationWorker(IServoTransport& bus, FeedbackBuffer& f
 std::size_t CommunicationWorker::processCommands(ServoClock::time_point now) {
     const auto cmd = mailbox_.takeLatest();
     if (!cmd || now < cmd->created_at || now - cmd->created_at > max_command_age_) return 0;
-    auto permit = stop_.tryAcquire(cmd->generation);
-    if (!permit || !permit->commitStart()) return 0;
     std::size_t sent = 0;
     for (std::size_t i = 0; i < kServoCount; ++i) {
-        // 已启动的同步发送无法被本层强制中断；停机后不启动下一路。
-        if (!stop_.commandsAllowed()) break;
-        if (!std::isfinite(cmd->position[i]) || !bus_.send(i, cmd->position[i])) break;
+        if (!std::isfinite(cmd->position[i])) {
+            stop_.requestStop();
+            break;
+        }
+        // TX 真正启动和停机请求使用同一把门禁锁，消除检查后启动竞态。
+        auto permit = stop_.beginSend(cmd->generation, [&] {
+            return bus_.startSend(i, cmd->position[i]);
+        });
+        if (!permit) break;
+
+        // 阻塞等待 UART 完成必须在门禁锁外；许可在完成后才释放。
+        if (!bus_.finishSend()) {
+            stop_.requestStop();
+            break;
+        }
         ++sent;
     }
     return sent;

@@ -45,3 +45,8 @@ add_test(NAME S4RuntimeTest COMMAND test_s4_runtime)
 add_executable(test_s4_integration tests/test_s4_integration.cpp)
 target_link_libraries(test_s4_integration PRIVATE robot_core)
 add_test(NAME S4IntegrationTest COMMAND test_s4_integration)
+
+# S5-01：停机与 TX 启动线性化点、多线程竞态回归。
+add_executable(test_s5_stop tests/test_s5_stop.cpp)
+target_link_libraries(test_s5_stop PRIVATE robot_core)
+add_test(NAME S5StopCoordinatorTest COMMAND test_s5_stop)
