@@ -33,7 +33,7 @@ int main() {
     assert(scheduler.completeCycle(origin + milliseconds(11)) == origin + milliseconds(20));
     assert(scheduler.skippedCycles() == 0);
     assert(scheduler.completeCycle(origin + milliseconds(45)) == origin + milliseconds(50));
-    assert(scheduler.skippedCycles() == 3);
+    assert(scheduler.skippedCycles() == 2); // 30ms、40ms 两个计划时刻被跳过。
 
     FeedbackBuffer feedback;
     CommandMailbox mailbox;
