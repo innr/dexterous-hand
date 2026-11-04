@@ -18,6 +18,12 @@ PeriodicScheduler::TimePoint PeriodicScheduler::advance(TimePoint now) {
     return next_;
 }
 
+PeriodicScheduler::TimePoint PeriodicScheduler::completeCycle(TimePoint finished) {
+    next_ += period_; // 当前周期已经执行，不应计入跳过次数。
+    if (finished >= next_) return advance(finished);
+    return next_;
+}
+
 void PeriodicScheduler::waitNext() {
     const auto scheduled = next_;
     std::this_thread::sleep_until(scheduled);

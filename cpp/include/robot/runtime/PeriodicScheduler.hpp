@@ -15,6 +15,8 @@ public:
 
     // 返回严格晚于 now 的下次启动时刻，并统计被跳过的计划时刻。
     TimePoint advance(TimePoint now);
+    // 本周期已执行完毕：推进一次正常周期，只统计后续被跳过的周期。
+    TimePoint completeCycle(TimePoint finished);
     // 等待当前计划时刻；正常执行不计为跳过，迟到时跳过后续过期周期。
     void waitNext();
     void reset(TimePoint start = Clock::now());

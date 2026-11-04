@@ -22,6 +22,7 @@ add_library(robot_core STATIC
     src/runtime/FeedbackBuffer.cpp
     src/runtime/CommandMailbox.cpp
     src/runtime/S4Pipeline.cpp
+    src/runtime/RealtimeExecutor.cpp
 )
 target_include_directories(robot_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 target_link_libraries(robot_core PUBLIC Threads::Threads)
@@ -50,3 +51,8 @@ add_test(NAME S4IntegrationTest COMMAND test_s4_integration)
 add_executable(test_s5_stop tests/test_s5_stop.cpp)
 target_link_libraries(test_s5_stop PRIVATE robot_core)
 add_test(NAME S5StopCoordinatorTest COMMAND test_s5_stop)
+
+# S5-02：真实线程生命周期、周期指标与慢总线隔离回归。
+add_executable(test_s5_runtime tests/test_s5_runtime.cpp)
+target_link_libraries(test_s5_runtime PRIVATE robot_core)
+add_test(NAME S5RealtimeExecutorTest COMMAND test_s5_runtime)

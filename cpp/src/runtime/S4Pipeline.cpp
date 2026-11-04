@@ -25,6 +25,7 @@ ControlLoop::ControlLoop(FeedbackBuffer& feedback, CommandMailbox& mailbox, Stop
     : feedback_(feedback), mailbox_(mailbox), stop_(stop), estimator_(max_feedback_age) {}
 void ControlLoop::setTargets(const std::array<float, kServoCount>& targets) {
     for (float target : targets) if (!std::isfinite(target)) throw std::invalid_argument("invalid target");
+    std::lock_guard<std::mutex> lock(targets_mutex_);
     targets_ = targets;
 }
 bool ControlLoop::tick(ServoClock::time_point now) {
@@ -32,9 +33,14 @@ bool ControlLoop::tick(ServoClock::time_point now) {
     const auto state = estimator_.estimate(feedback_.read(), now);
     // 第一版保守处理：任意一路反馈过期，禁止发布整手新动作。
     for (bool valid : state.valid) if (!valid) return false;
+    std::array<float, kServoCount> targets;
+    {
+        std::lock_guard<std::mutex> lock(targets_mutex_);
+        targets = targets_;
+    }
     ServoCommand command;
     for (std::size_t i = 0; i < kServoCount; ++i)
-        command.position[i] = std::clamp(targets_[i], -90.0f, 90.0f);
+        command.position[i] = std::clamp(targets[i], -90.0f, 90.0f);
     command.sequence = ++sequence_;
     command.generation = stop_.generation();
     command.created_at = now;
@@ -72,6 +78,24 @@ std::size_t CommunicationWorker::processCommands(ServoClock::time_point now) {
     }
     return sent;
 }
+void CommunicationWorker::pollFeedbackRealTime() {
+    auto data = feedback_.read();
+    for (std::size_t i = 0; i < kServoCount; ++i) {
+        float p = 0.0f, v = 0.0f;
+        const bool read_ok = bus_.read(i, p, v);
+        const auto sampled_at = ServoClock::now();
+        if (read_ok && std::isfinite(p) && std::isfinite(v)) {
+            data.position[i] = p;
+            data.velocity[i] = v;
+            data.timestamp[i] = sampled_at; // 不能用整轮轮询开始时刻代替逐路时刻。
+            data.valid[i] = true;
+        } else {
+            data.valid[i] = false;
+        }
+    }
+    feedback_.publish(data);
+}
+
 void CommunicationWorker::pollFeedback(ServoClock::time_point now) {
     auto data = feedback_.read();
     for (std::size_t i = 0; i < kServoCount; ++i) {
