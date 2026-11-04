@@ -64,3 +64,7 @@ add_test(NAME S5RealtimeExecutorTest COMMAND test_s5_runtime)
 add_executable(test_s5_sts3215 tests/test_s5_sts3215.cpp)
 target_link_libraries(test_s5_sts3215 PRIVATE robot_core)
 add_test(NAME S5Sts3215ProtocolTest COMMAND test_s5_sts3215)
+
+# 台架只读工具：必须手动传入串口与 16 路 ID；不会使能扭矩。
+add_executable(sts3215_readonly_probe examples/sts3215_readonly_probe.cpp)
+target_link_libraries(sts3215_readonly_probe PRIVATE robot_core)

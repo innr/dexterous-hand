@@ -37,3 +37,10 @@ cmake -S cpp -B build/cpp -DCMAKE_BUILD_TYPE=Debug
 cmake --build build/cpp --parallel
 ctest --test-dir build/cpp --output-on-failure
 ```
+
+## 台架只读探测（Linux）
+```sh
+./build/cpp/sts3215_readonly_probe /dev/ttyUSB0 1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16
+```
+此处 ID 仅为**命令格式示例**，真实设备必须按扫描结果填写。工具不会使能扭矩或下发运动命令。
+若适配器不支持 UART TEMT 查询，将安全失败，不应绕过该检查直接运动。
