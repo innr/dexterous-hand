@@ -112,6 +112,11 @@ int main() {
     const std::array<std::uint8_t,9> write{{0xff,0xff,7,5,3,42,0,8,0xbe}};
     for (std::size_t i=0;i<write.size();++i) assert(port.writes[0][i]==write[i]);
 
+    // 原始位置读取不依赖关节零位和速度估算，首次响应即有效。
+    port.respond(7,0,2048);
+    std::uint16_t raw_ticks=0;
+    assert(transport.readPositionTicks(6,raw_ticks) && raw_ticks==2048);
+
     // 第一次读只获得位置；第二次读才能计算速度。
     port.respond(7,0,2048);
     float position=999,velocity=999;

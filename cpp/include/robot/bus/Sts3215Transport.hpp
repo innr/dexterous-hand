@@ -29,6 +29,9 @@ public:
     bool startSend(std::size_t joint, float degree) noexcept override;
     bool finishSend() noexcept override;
     bool read(std::size_t joint, float& position, float& velocity) override;
+    // 只读台架使用：返回未经零位/限位换算的编码器原始 tick。
+    // 首次读取即可判定协议是否成功，不需要虚构速度。
+    bool readPositionTicks(std::size_t joint, std::uint16_t& ticks);
     bool faulted() const noexcept { return faulted_; }
 private:
     bool readStatus(std::uint8_t servo_id, std::size_t count, sts3215::Status& out) noexcept;

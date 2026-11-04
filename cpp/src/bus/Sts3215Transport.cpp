@@ -82,16 +82,23 @@ bool Sts3215Transport::sendReadRequest(std::uint8_t servo_id) noexcept {
     }
     return true;
 }
-bool Sts3215Transport::read(std::size_t joint,float& position,float& velocity) {
+bool Sts3215Transport::readPositionTicks(std::size_t joint,std::uint16_t& ticks) {
     if (faulted_ || sending_ || joint>=kServoCount) return false;
-    const auto& j=config_.joints[joint];
-    if (!sendReadRequest(j.servo_id)) return false;
+    const auto servo_id=config_.joints[joint].servo_id;
+    if (!sendReadRequest(servo_id)) return false;
     sts3215::Status status;
-    if (!readStatus(j.servo_id,2,status) || status.error!=0) return false;
+    if (!readStatus(servo_id,2,status) || status.error!=0) return false;
     const auto raw=static_cast<unsigned>(status.params[0]) |
                    (static_cast<unsigned>(status.params[1])<<8);
     if (raw>4095) return false;
-    const float angle=(static_cast<float>(raw)-j.center_ticks) /
+    ticks=static_cast<std::uint16_t>(raw);
+    return true;
+}
+bool Sts3215Transport::read(std::size_t joint,float& position,float& velocity) {
+    std::uint16_t ticks=0;
+    if (!readPositionTicks(joint,ticks)) return false;
+    const auto& j=config_.joints[joint];
+    const float angle=(static_cast<float>(ticks)-j.center_ticks) /
                       (j.direction*j.ticks_per_degree);
     if (!std::isfinite(angle) || angle<j.min_degree || angle>j.max_degree) return false;
     const auto now=ServoClock::now();
