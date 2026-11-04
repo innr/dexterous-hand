@@ -10,6 +10,9 @@ add_library(robot_core STATIC
     src/core/RobotHand.cpp
     src/bus/MockBus.cpp
     src/bus/VirtualServoBus.cpp
+    src/bus/Sts3215Protocol.cpp
+    src/bus/Sts3215Transport.cpp
+    src/bus/PosixHalfDuplexPort.cpp
     src/control/RobotController.cpp
     src/control/PDController.cpp
     src/control/TrajectoryMath.cpp
@@ -56,3 +59,8 @@ add_test(NAME S5StopCoordinatorTest COMMAND test_s5_stop)
 add_executable(test_s5_runtime tests/test_s5_runtime.cpp)
 target_link_libraries(test_s5_runtime PRIVATE robot_core)
 add_test(NAME S5RealtimeExecutorTest COMMAND test_s5_runtime)
+
+# S5-03：STS3215 数据包、串口协议与故障注入测试。
+add_executable(test_s5_sts3215 tests/test_s5_sts3215.cpp)
+target_link_libraries(test_s5_sts3215 PRIVATE robot_core)
+add_test(NAME S5Sts3215ProtocolTest COMMAND test_s5_sts3215)
