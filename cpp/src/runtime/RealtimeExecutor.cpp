@@ -32,7 +32,7 @@ RealtimeExecutor::~RealtimeExecutor() { stop(); }
 bool RealtimeExecutor::start() {
     std::lock_guard<std::mutex> lock(lifecycle_mutex_);
     if (started_once_ || !stop_.commandsAllowed()) return false;
-    started_once_ = true;
+    started_once_.store(true);
     stopping_.store(false);
     try {
         control_thread_ = std::thread([this] { controlMain(); });
@@ -66,7 +66,7 @@ void RealtimeExecutor::stop() {
 }
 
 bool RealtimeExecutor::running() const noexcept {
-    return started_once_ && !stopping_.load();
+    return started_once_.load() && !stopping_.load();
 }
 
 RuntimeStats RealtimeExecutor::stats() const {

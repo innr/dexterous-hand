@@ -65,7 +65,7 @@ private:
     Config config_;
 
     mutable std::mutex lifecycle_mutex_;
-    bool started_once_ = false;
+    std::atomic<bool> started_once_{false};
     std::thread control_thread_;
     std::thread communication_thread_;
     std::atomic<bool> stopping_{false};
