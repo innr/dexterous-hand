@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <atomic>
 #include <exception>
+#include <ostream>
 #include <stdexcept>
 #include <thread>
 #include <utility>
