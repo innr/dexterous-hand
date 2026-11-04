@@ -1,10 +1,13 @@
 #pragma once
+
 #include <cstddef>
 #include <cstdint>
+#include <functional>
 #include <mutex>
 #include <optional>
 
-// 统一发送门禁：停机后不再授权新的发送；在途发送仍须等待完成。
+// 发送门禁：停机状态检查与非阻塞 TX 启动共享一个线性化点。
+// 注意：startSend 回调必须立即启动传输且有界、非阻塞，不得重入本类。
 namespace robot {
 class StopCoordinator {
 public:
@@ -15,17 +18,20 @@ public:
         SendPermit(SendPermit&& other) noexcept;
         SendPermit& operator=(SendPermit&& other) noexcept;
         ~SendPermit();
-        bool commitStart();
     private:
         friend class StopCoordinator;
-        SendPermit(StopCoordinator* owner, std::uint64_t generation);
+        explicit SendPermit(StopCoordinator* owner) noexcept;
         void release() noexcept;
         StopCoordinator* owner_;
-        std::uint64_t generation_;
-        bool started_ = false;
     };
-    std::optional<SendPermit> tryAcquire(std::uint64_t generation);
+
+    // 原子检查 generation + 启动一次 TX；失败不创建在途许可。
+    // start 回调不得阻塞、抛异常、排队后才启动，也不得调用 StopCoordinator。
+    std::optional<SendPermit> beginSend(std::uint64_t generation,
+                                        const std::function<bool()>& start);
+    // 请求停机只禁止后续启动，不等待已在途的 UART 传输。
     void requestStop();
+    // 恢复前必须确认所有已启动传输已完成。
     bool recover(bool operator_authorized, bool fault_cleared);
     std::uint64_t generation() const;
     bool commandsAllowed() const;
