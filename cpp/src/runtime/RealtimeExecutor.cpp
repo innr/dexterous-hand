@@ -21,7 +21,7 @@ RealtimeExecutor::RealtimeExecutor(ControlLoop& control, CommunicationWorker& co
 RealtimeExecutor::RealtimeExecutor(ControlLoop& control, CommunicationWorker& communication,
                                    FeedbackBuffer& feedback, StopCoordinator& stop, Config config)
     : control_(control), communication_(communication), feedback_(feedback),
-      stop_(stop), config_(config) {
+      stop_(stop), config_(config), feedback_safety_(config.feedback_safety) {
     if (config_.control_period <= std::chrono::milliseconds::zero() ||
         config_.communication_pause <= std::chrono::milliseconds::zero() ||
         config_.feedback_batch_size == 0 || config_.feedback_batch_size > kServoCount)
@@ -87,6 +87,7 @@ void RealtimeExecutor::failSafe() noexcept {
 void RealtimeExecutor::controlMain() noexcept {
     try {
         PeriodicScheduler scheduler(config_.control_period, Clock::now() + config_.control_period);
+        bool gate_inhibited = false;
         while (!stopping_.load()) {
             const auto scheduled = scheduler.nextTime();
             {
@@ -108,7 +109,20 @@ void RealtimeExecutor::controlMain() noexcept {
                 oldest_age_us = std::max(oldest_age_us, micros(begin - feedback.timestamp[i]));
             }
 
-            const bool published = control_.tick(begin);
+            const auto safety = feedback_safety_.evaluate(feedback, begin);
+            if (safety.inhibit_motion && !gate_inhibited) {
+                // 先关闭原子发送门禁，再清理待发送邮箱；在途 TX 不会被伪装为取消。
+                stop_.requestStop();
+                control_.clearPendingCommands();
+                gate_inhibited = true;
+            }
+            if (safety.request_safe_stop) {
+                stopping_.store(true);
+                wake_cv_.notify_all();
+            }
+            const bool published = !safety.startup_waiting && !safety.inhibit_motion &&
+                                   !safety.request_safe_stop &&
+                                   control_.tick(begin);
             const auto finished = Clock::now();
             const bool missed = finished > scheduled + config_.control_period;
             scheduler.completeCycle(finished); // 只跳过后续过期时刻，不补跑。
@@ -123,6 +137,12 @@ void RealtimeExecutor::controlMain() noexcept {
                 stats_.max_control_duration_us =
                     std::max(stats_.max_control_duration_us, micros(finished - begin));
                 stats_.invalid_feedback_joints = invalid;
+                stats_.feedback_safety_state = safety.state;
+                stats_.stale_feedback_joints = safety.stale_joints;
+                stats_.warning_feedback_joints = safety.warning_joints;
+                stats_.consecutive_critical_ticks = safety.consecutive_critical_ticks;
+                stats_.feedback_startup_waiting = safety.startup_waiting;
+                stats_.feedback_motion_inhibited = safety.inhibit_motion;
                 stats_.max_feedback_age_us =
                     std::max(stats_.max_feedback_age_us, oldest_age_us);
                 deadline_.record(missed);

@@ -20,6 +20,7 @@ add_library(robot_core STATIC
     src/control/JointTrajectoryPlanner.cpp
     src/safety/SafetyStateMachine.cpp
     src/safety/StopCoordinator.cpp
+    src/safety/FeedbackSafetyMonitor.cpp
     src/runtime/PeriodicScheduler.cpp
     src/runtime/DeadlineMonitor.cpp
     src/runtime/FeedbackBuffer.cpp
@@ -82,3 +83,8 @@ target_link_libraries(sts3215_bench PRIVATE robot_core)
 add_executable(test_s5_feedback_slicing tests/test_s5_feedback_slicing.cpp)
 target_link_libraries(test_s5_feedback_slicing PRIVATE robot_core)
 add_test(NAME S5FeedbackSlicingTest COMMAND test_s5_feedback_slicing)
+
+# S5-06：反馈超时分级、运动发送门禁与 SAFE_STOP 锁存。
+add_executable(test_s5_feedback_safety tests/test_s5_feedback_safety.cpp)
+target_link_libraries(test_s5_feedback_safety PRIVATE robot_core)
+add_test(NAME S5FeedbackSafetyTest COMMAND test_s5_feedback_safety)

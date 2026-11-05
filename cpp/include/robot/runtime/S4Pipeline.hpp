@@ -30,6 +30,8 @@ public:
                 std::chrono::milliseconds max_feedback_age);
     void setTargets(const std::array<float, kServoCount>& targets);
     bool tick(ServoClock::time_point now);
+    // 反馈硬异常时清除尚未被通信线程取走的旧命令。
+    void clearPendingCommands();
 private:
     FeedbackBuffer& feedback_;
     CommandMailbox& mailbox_;
