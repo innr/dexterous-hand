@@ -120,7 +120,8 @@ void RealtimeExecutor::controlMain() noexcept {
                 stopping_.store(true);
                 wake_cv_.notify_all();
             }
-            const bool published = !safety.inhibit_motion && !safety.request_safe_stop &&
+            const bool published = !safety.startup_waiting && !safety.inhibit_motion &&
+                                   !safety.request_safe_stop &&
                                    control_.tick(begin);
             const auto finished = Clock::now();
             const bool missed = finished > scheduled + config_.control_period;

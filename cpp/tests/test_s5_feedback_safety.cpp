@@ -8,6 +8,7 @@
 #include <chrono>
 #include <cstddef>
 #include <stdexcept>
+#include <limits>
 #include <thread>
 
 namespace {
@@ -95,6 +96,13 @@ int main() {
     (void)future.evaluate(fresh(t0),t0);
     d=future.evaluate(sample,t0+milliseconds(1));
     assert(d.invalid_joints==kServoCount && d.inhibit_motion);
+
+    FeedbackSafetyMonitor nonfinite(cfg);
+    sample=fresh(t0);
+    (void)nonfinite.evaluate(sample,t0);
+    sample.velocity[5]=std::numeric_limits<float>::quiet_NaN();
+    d=nonfinite.evaluate(sample,t0+milliseconds(1));
+    assert(d.invalid_joints==1 && d.inhibit_motion);
 
     bool invalid=false;
     cfg.hard_timeout=cfg.warning_age;
