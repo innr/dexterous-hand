@@ -45,19 +45,16 @@ int main() {
         done.store(true,std::memory_order_release);
     });
     std::uint64_t received=0,last=0;
-    while (!done.load(std::memory_order_acquire) || concurrent.tryPop(f)) {
-        if (!concurrent.tryPop(f)) {
+    while (true) {
+        if (concurrent.tryPop(f)) {
+            assert(f.tick>last);
+            last=f.tick;
+            ++received;
+        } else if (done.load(std::memory_order_acquire)) {
+            break;
+        } else {
             std::this_thread::yield();
-            continue;
         }
-        assert(f.tick>last);
-        last=f.tick;
-        ++received;
-    }
-    while (concurrent.tryPop(f)) {
-        assert(f.tick>last);
-        last=f.tick;
-        ++received;
     }
     producer.join();
     assert(received+concurrent.dropped()==100000);
