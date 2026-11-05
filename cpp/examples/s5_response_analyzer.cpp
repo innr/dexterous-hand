@@ -10,7 +10,7 @@
 
 namespace {
 void stripCR(std::string& line) {
-    if (!line.empty() && line.back()=='\\r') line.pop_back();
+    if (!line.empty() && line.back()=='\r') line.pop_back();
 }
 double parse(const std::string& value) {
     std::size_t consumed=0;
