@@ -1,12 +1,15 @@
 // S5-07：虚拟时间下验证16关节限速/限加速度、PD位置外环与安全门禁。
 #include "robot/control/MotionControlCore.hpp"
 #include "robot/runtime/S4Pipeline.hpp"
+#include "robot/runtime/RealtimeExecutor.hpp"
+#include "robot/bus/VirtualServoBus.hpp"
 #include <array>
 #include <cassert>
 #include <chrono>
 #include <cmath>
 #include <limits>
 #include <stdexcept>
+#include <thread>
 
 namespace {
 robot::FeedbackSnapshot feedbackAt(robot::ServoClock::time_point now,float angle) {
@@ -111,4 +114,31 @@ int main() {
     // 缺少新反馈时不允许无期限依靠历史反馈控制。
     assert(!loop.tick(origin+milliseconds(40)));
     assert(!stop.commandsAllowed() || !mailbox.takeLatest());
+
+    // 真实双线程运行器（虚拟总线）：确认默认接入外环，
+    // 而非直接将应用目标30°转发给舵机。
+    FeedbackBuffer live_feedback;
+    CommandMailbox live_mailbox;
+    StopCoordinator live_stop;
+    VirtualServoBus virtual_bus;
+    ControlLoop live_control(live_feedback,live_mailbox,live_stop,milliseconds(50));
+    CommunicationWorker live_worker(virtual_bus,live_feedback,live_mailbox,
+                                    live_stop,milliseconds(100));
+    live_worker.pollFeedback(ServoClock::now());
+    target.fill(30.0f);
+    live_control.setTargets(target);
+    RealtimeExecutor::Config runtime;
+    runtime.control_period=milliseconds(10);
+    runtime.communication_pause=milliseconds(1);
+    runtime.motion.max_step=milliseconds(50);
+    RealtimeExecutor executor(live_control,live_worker,live_feedback,live_stop,runtime);
+    assert(executor.start());
+    std::this_thread::sleep_for(milliseconds(150));
+    const auto stats=executor.stats();
+    executor.stop();
+    float actual=0.0f, actual_velocity=0.0f;
+    assert(virtual_bus.read(0,actual,actual_velocity));
+    assert(stats.control_ticks>=5 && stats.published_commands>0);
+    assert(virtual_bus.sendCount()>0);
+    assert(actual>0.0f && actual<30.0f); // 不允许首次阶跃直接跳到30°。
 }
