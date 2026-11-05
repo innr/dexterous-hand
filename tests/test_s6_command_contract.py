@@ -1,4 +1,7 @@
 from dataclasses import replace
+from pathlib import Path
+import sys
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from simulation.s6_command_contract import JointCommandData, validate_command
 
 def rejected(fn):
