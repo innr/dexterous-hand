@@ -99,6 +99,8 @@ int main() {
     assert(ticks>=5 && published>0);
     assert(ring.dropped()==0);
     assert(ticks==executor.stats().control_ticks);
+    assert(executor.stats().max_full_tick_duration_us >=
+           executor.stats().max_control_duration_us);
     const auto contents=csv.str();
     assert(contents.find("tick,time_us,joint,status,safety_state,published") == 0);
     std::size_t newline_count=0;

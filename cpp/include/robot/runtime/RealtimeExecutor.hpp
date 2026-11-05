@@ -29,7 +29,8 @@ struct RuntimeStats {
     std::uint64_t sent_servos = 0;
     std::uint64_t worker_faults = 0;
     std::int64_t max_start_lateness_us = 0;
-    std::int64_t max_control_duration_us = 0;
+    std::int64_t max_control_duration_us = 0; // 控制计算阶段，不含日志入队与统计更新。
+    std::int64_t max_full_tick_duration_us = 0; // 含遥测入队与统计更新，作为 deadline 依据。
     std::int64_t max_feedback_age_us = -1; // -1 表示尚无有效反馈。
     std::size_t invalid_feedback_joints = kServoCount;
     DeadlineHealth deadline_health = DeadlineHealth::NORMAL;

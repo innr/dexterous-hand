@@ -65,6 +65,7 @@ int main() {
     assert(before_stop.control_ticks > before_stop.communication_polls * 2);
     assert(before_stop.max_start_lateness_us >= 0);
     assert(before_stop.max_control_duration_us >= 0);
+    assert(before_stop.max_full_tick_duration_us >= before_stop.max_control_duration_us);
     assert(before_stop.invalid_feedback_joints <= kServoCount);
     assert(executor.running());
 

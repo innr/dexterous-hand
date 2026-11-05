@@ -139,14 +139,13 @@ void RealtimeExecutor::controlMain() noexcept {
                         micros(begin-feedback.timestamp[i]) : -1;
                 }
             }
-            const auto finished = Clock::now();
-            const bool missed = finished > scheduled + config_.control_period;
-            scheduler.completeCycle(finished); // 只跳过后续过期时刻，不补跑。
+            // 算法耗时与整周期耗时分开：trace 保持旧字段的控制计算语义。
+            const auto computation_finished = Clock::now();
             if (config_.telemetry) {
                 trace.tick=++telemetry_tick_;
                 trace.time_us=micros(begin.time_since_epoch());
                 trace.start_lateness_us=micros(begin-scheduled);
-                trace.control_duration_us=micros(finished-begin);
+                trace.control_duration_us=micros(computation_finished-begin);
                 trace.safety_state=static_cast<std::uint8_t>(safety.state);
                 (void)config_.telemetry->tryPush(trace);
             }
@@ -154,12 +153,10 @@ void RealtimeExecutor::controlMain() noexcept {
                 std::lock_guard<std::mutex> lock(stats_mutex_);
                 ++stats_.control_ticks;
                 if (published) ++stats_.published_commands;
-                if (missed) ++stats_.deadline_misses;
-                stats_.skipped_cycles = scheduler.skippedCycles();
                 stats_.max_start_lateness_us =
                     std::max(stats_.max_start_lateness_us, micros(begin - scheduled));
                 stats_.max_control_duration_us =
-                    std::max(stats_.max_control_duration_us, micros(finished - begin));
+                    std::max(stats_.max_control_duration_us, micros(computation_finished - begin));
                 stats_.invalid_feedback_joints = invalid;
                 stats_.feedback_safety_state = safety.state;
                 stats_.stale_feedback_joints = safety.stale_joints;
@@ -169,6 +166,15 @@ void RealtimeExecutor::controlMain() noexcept {
                 stats_.feedback_motion_inhibited = safety.inhibit_motion;
                 stats_.max_feedback_age_us =
                     std::max(stats_.max_feedback_age_us, oldest_age_us);
+                // 在遥测入队和统计更新后测量，Deadline 以整周期为准。
+                // mutex 解锁及 scheduler 更新本身的极短开销仍不在测量内。
+                const auto completed = Clock::now();
+                const bool missed = completed > scheduled + config_.control_period;
+                if (missed) ++stats_.deadline_misses;
+                stats_.max_full_tick_duration_us =
+                    std::max(stats_.max_full_tick_duration_us, micros(completed - begin));
+                scheduler.completeCycle(completed); // 只跳过后续过期时刻，不补跑。
+                stats_.skipped_cycles = scheduler.skippedCycles();
                 deadline_.record(missed);
                 stats_.deadline_health = deadline_.health();
             }
