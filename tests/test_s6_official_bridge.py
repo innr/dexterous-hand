@@ -5,6 +5,8 @@ import math
 from pathlib import Path
 import sys
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
 from simulation.fetch_leap_menagerie import DEST
 from simulation.s6_official_bridge import OfficialPlant, SimSession, load_contract
 
