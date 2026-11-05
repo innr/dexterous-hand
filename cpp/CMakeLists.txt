@@ -122,3 +122,12 @@ add_executable(s5_telemetry_demo examples/s5_telemetry_demo.cpp)
 target_link_libraries(s5_telemetry_demo PRIVATE robot_core)
 set(S5_TELEMETRY_CSV "${CMAKE_CURRENT_BINARY_DIR}/s5_telemetry.csv")
 add_test(NAME S5TelemetryDemoTest COMMAND s5_telemetry_demo "${S5_TELEMETRY_CSV}")
+set_tests_properties(S5TelemetryDemoTest PROPERTIES FIXTURES_SETUP S5_TELEMETRY_CSV_READY)
+find_package(Python3 COMPONENTS Interpreter QUIET)
+if(Python3_Interpreter_FOUND)
+    add_test(NAME S5TelemetryPlotTest
+             COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/../scripts/plot_s5_telemetry.py"
+                     "${S5_TELEMETRY_CSV}" --joint 0
+                     --output "${CMAKE_CURRENT_BINARY_DIR}/s5_telemetry.html")
+    set_tests_properties(S5TelemetryPlotTest PROPERTIES FIXTURES_REQUIRED S5_TELEMETRY_CSV_READY)
+endif()
