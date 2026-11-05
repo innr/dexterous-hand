@@ -1,5 +1,6 @@
 #pragma once
 #include "robot/runtime/FeedbackBuffer.hpp"
+#include "robot/control/MotionControlCore.hpp"
 #include "robot/runtime/CommandMailbox.hpp"
 #include "robot/safety/StopCoordinator.hpp"
 #include "robot/bus/IServoTransport.hpp"
@@ -29,6 +30,8 @@ public:
     ControlLoop(FeedbackBuffer& feedback, CommandMailbox& mailbox, StopCoordinator& stop,
                 std::chrono::milliseconds max_feedback_age);
     void setTargets(const std::array<float, kServoCount>& targets);
+    // 必须在运行器启动前配置；单独使用 ControlLoop 时保留 S4 直通兼容模式。
+    void enableMotionControl(MotionControlConfig config);
     bool tick(ServoClock::time_point now);
     // 反馈硬异常时清除尚未被通信线程取走的旧命令。
     void clearPendingCommands();
@@ -41,6 +44,9 @@ private:
     std::mutex targets_mutex_;
     std::array<float, kServoCount> targets_{};
     std::uint64_t sequence_ = 0;
+    bool targets_set_ = false;
+    std::unique_ptr<MotionControlCore> motion_;
+    MotionStep last_motion_step_{};
 };
 // 分片轮询结果：completed_round 只在第 16 路完成时置位。
 struct PollBatchResult {

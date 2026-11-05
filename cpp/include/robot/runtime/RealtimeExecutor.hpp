@@ -1,6 +1,7 @@
 #pragma once
 
 #include "robot/runtime/DeadlineMonitor.hpp"
+#include "robot/control/MotionControlCore.hpp"
 #include "robot/runtime/FeedbackBuffer.hpp"
 #include "robot/runtime/S4Pipeline.hpp"
 #include "robot/safety/StopCoordinator.hpp"
@@ -46,6 +47,7 @@ public:
         std::chrono::milliseconds communication_pause{1};
         std::size_t feedback_batch_size = 4; // 每批最多 4 路，优先给新命令发送机会。
         FeedbackSafetyConfig feedback_safety{}; // 默认启用；测试可显式关闭。
+        MotionControlConfig motion{}; // 默认开启位置外环 PD + 双重轨迹限制。
     };
 
     RealtimeExecutor(ControlLoop& control, CommunicationWorker& communication,

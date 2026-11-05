@@ -26,6 +26,9 @@ RealtimeExecutor::RealtimeExecutor(ControlLoop& control, CommunicationWorker& co
         config_.communication_pause <= std::chrono::milliseconds::zero() ||
         config_.feedback_batch_size == 0 || config_.feedback_batch_size > kServoCount)
         throw std::invalid_argument("invalid runtime period");
+    // RealtimeExecutor 构造在启动线程之前完成，避免控制线程看到半配置状态。
+    config_.motion.nominal_period=config_.control_period;
+    control_.enableMotionControl(config_.motion);
 }
 
 RealtimeExecutor::~RealtimeExecutor() { stop(); }
