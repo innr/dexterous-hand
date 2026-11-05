@@ -23,6 +23,7 @@ EstimatedState StateEstimator::estimate(const FeedbackSnapshot& data, ServoClock
 ControlLoop::ControlLoop(FeedbackBuffer& feedback, CommandMailbox& mailbox, StopCoordinator& stop,
                          std::chrono::milliseconds max_feedback_age)
     : feedback_(feedback), mailbox_(mailbox), stop_(stop), estimator_(max_feedback_age) {}
+void ControlLoop::clearPendingCommands() { mailbox_.clear(); }
 void ControlLoop::setTargets(const std::array<float, kServoCount>& targets) {
     for (float target : targets) if (!std::isfinite(target)) throw std::invalid_argument("invalid target");
     std::lock_guard<std::mutex> lock(targets_mutex_);

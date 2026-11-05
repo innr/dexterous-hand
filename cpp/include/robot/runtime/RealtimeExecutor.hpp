@@ -4,6 +4,7 @@
 #include "robot/runtime/FeedbackBuffer.hpp"
 #include "robot/runtime/S4Pipeline.hpp"
 #include "robot/safety/StopCoordinator.hpp"
+#include "robot/safety/FeedbackSafetyMonitor.hpp"
 
 #include <atomic>
 #include <chrono>
@@ -30,6 +31,12 @@ struct RuntimeStats {
     std::int64_t max_feedback_age_us = -1; // -1 表示尚无有效反馈。
     std::size_t invalid_feedback_joints = kServoCount;
     DeadlineHealth deadline_health = DeadlineHealth::NORMAL;
+    SafetyState feedback_safety_state = SafetyState::NORMAL;
+    std::size_t stale_feedback_joints = 0;
+    std::size_t warning_feedback_joints = 0;
+    std::size_t consecutive_critical_ticks = 0;
+    bool feedback_startup_waiting = false;
+    bool feedback_motion_inhibited = false;
 };
 
 class RealtimeExecutor {
@@ -38,6 +45,7 @@ public:
         std::chrono::milliseconds control_period{10}; // 100 Hz
         std::chrono::milliseconds communication_pause{1};
         std::size_t feedback_batch_size = 4; // 每批最多 4 路，优先给新命令发送机会。
+        FeedbackSafetyConfig feedback_safety{}; // 默认启用；测试可显式关闭。
     };
 
     RealtimeExecutor(ControlLoop& control, CommunicationWorker& communication,
@@ -79,6 +87,7 @@ private:
     mutable std::mutex stats_mutex_;
     RuntimeStats stats_;
     DeadlineMonitor deadline_;
+    FeedbackSafetyMonitor feedback_safety_; // 仅由控制线程调用。
 };
 
 } // namespace robot

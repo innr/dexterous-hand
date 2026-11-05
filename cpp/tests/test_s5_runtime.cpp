@@ -44,6 +44,8 @@ int main() {
     RealtimeExecutor::Config config;
     config.control_period = milliseconds(5);
     config.communication_pause = milliseconds(1);
+    // 本测试专门验证慢总线下双线程独立性；安全超时由 S5-06 单独测试。
+    config.feedback_safety.enabled = false;
     RealtimeExecutor executor(control, communication, feedback, stop, config);
     assert(executor.start());
     assert(!executor.start()); // 禁止重复启动。
