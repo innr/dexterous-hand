@@ -1,6 +1,7 @@
 #pragma once
 
 #include "robot/runtime/DeadlineMonitor.hpp"
+#include "robot/runtime/ControlTelemetry.hpp"
 #include "robot/control/MotionControlCore.hpp"
 #include "robot/runtime/FeedbackBuffer.hpp"
 #include "robot/runtime/S4Pipeline.hpp"
@@ -48,6 +49,7 @@ public:
         std::size_t feedback_batch_size = 4; // 每批最多 4 路，优先给新命令发送机会。
         FeedbackSafetyConfig feedback_safety{}; // 默认启用；测试可显式关闭。
         MotionControlConfig motion{}; // 默认开启位置外环 PD + 双重轨迹限制。
+        ControlTelemetryRing* telemetry = nullptr; // 可选；调用方保证比运行器存活更久。
     };
 
     RealtimeExecutor(ControlLoop& control, CommunicationWorker& communication,
@@ -90,6 +92,7 @@ private:
     RuntimeStats stats_;
     DeadlineMonitor deadline_;
     FeedbackSafetyMonitor feedback_safety_; // 仅由控制线程调用。
+    std::uint64_t telemetry_tick_ = 0; // 仅控制线程写。
 };
 
 } // namespace robot

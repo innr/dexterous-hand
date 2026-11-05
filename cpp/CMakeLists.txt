@@ -31,6 +31,7 @@ add_library(robot_core STATIC
     src/runtime/S4Pipeline.cpp
     src/runtime/RealtimeExecutor.cpp
     src/runtime/ReadOnlyBench.cpp
+    src/runtime/ControlTelemetry.cpp
 )
 target_include_directories(robot_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 target_link_libraries(robot_core PUBLIC Threads::Threads)
@@ -112,3 +113,21 @@ add_test(NAME S5VirtualTuningCliTest COMMAND s5_virtual_tuning "${S5_TUNING_CSV}
 set_tests_properties(S5VirtualTuningCliTest PROPERTIES FIXTURES_SETUP S5_TUNING_CSV_READY)
 add_test(NAME S5ResponseAnalyzerCliTest COMMAND s5_response_analyzer "${S5_TUNING_CSV}")
 set_tests_properties(S5ResponseAnalyzerCliTest PROPERTIES FIXTURES_REQUIRED S5_TUNING_CSV_READY)
+
+# S5-09：非阻塞100Hz环形遥测，虚拟总线CSV端到端。
+add_executable(test_s5_telemetry tests/test_s5_telemetry.cpp)
+target_link_libraries(test_s5_telemetry PRIVATE robot_core)
+add_test(NAME S5TelemetryTest COMMAND test_s5_telemetry)
+add_executable(s5_telemetry_demo examples/s5_telemetry_demo.cpp)
+target_link_libraries(s5_telemetry_demo PRIVATE robot_core)
+set(S5_TELEMETRY_CSV "${CMAKE_CURRENT_BINARY_DIR}/s5_telemetry.csv")
+add_test(NAME S5TelemetryDemoTest COMMAND s5_telemetry_demo "${S5_TELEMETRY_CSV}")
+set_tests_properties(S5TelemetryDemoTest PROPERTIES FIXTURES_SETUP S5_TELEMETRY_CSV_READY)
+find_package(Python3 COMPONENTS Interpreter QUIET)
+if(Python3_Interpreter_FOUND)
+    add_test(NAME S5TelemetryPlotTest
+             COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/../scripts/plot_s5_telemetry.py"
+                     "${S5_TELEMETRY_CSV}" --joint 0
+                     --output "${CMAKE_CURRENT_BINARY_DIR}/s5_telemetry.html")
+    set_tests_properties(S5TelemetryPlotTest PROPERTIES FIXTURES_REQUIRED S5_TELEMETRY_CSV_READY)
+endif()

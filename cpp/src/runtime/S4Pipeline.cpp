@@ -33,33 +33,56 @@ void ControlLoop::setTargets(const std::array<float, kServoCount>& targets) {
     targets_ = targets;
     targets_set_ = true;
 }
-bool ControlLoop::tick(ServoClock::time_point now) {
+bool ControlLoop::tick(ServoClock::time_point now, ControlTelemetryFrame* trace) {
+    if (trace) trace->status=ControlTickStatus::STOP_GATE;
     if (!stop_.commandsAllowed()) return false;
     const auto snapshot=feedback_.read();
+    if (trace) {
+        trace->feedback_sequence=snapshot.sequence;
+        for (std::size_t i=0;i<kServoCount;++i) {
+            trace->measured_deg[i]=snapshot.position[i];
+            trace->measured_velocity_deg_s[i]=snapshot.velocity[i];
+            trace->feedback_valid[i]=snapshot.valid[i] && now>=snapshot.timestamp[i];
+            trace->feedback_age_us[i]=trace->feedback_valid[i] ?
+                std::chrono::duration_cast<std::chrono::microseconds>(
+                    now-snapshot.timestamp[i]).count() : -1;
+        }
+        trace->status=ControlTickStatus::INVALID_FEEDBACK;
+    }
     const auto state = estimator_.estimate(snapshot, now);
     // 第一版保守处理：任意一路反馈过期，禁止发布整手新动作。
     for (bool valid : state.valid) if (!valid) return false;
     std::array<float, kServoCount> targets;
     {
         std::lock_guard<std::mutex> lock(targets_mutex_);
-        if (motion_ && !targets_set_) return false; // 未授权目标时不得自行回零。
+        if (motion_ && !targets_set_) {
+            if (trace) trace->status=ControlTickStatus::NO_TARGET;
+            return false; // 未授权目标时不得自行回零。
+        }
         targets = targets_;
     }
+    if (trace) trace->target_deg=targets;
     ServoCommand command;
     if (motion_) {
         std::array<float,kServoCount> measured_velocity{};
         for (std::size_t i=0;i<kServoCount;++i) measured_velocity[i]=snapshot.velocity[i];
         if (!motion_->step(targets,state.position,measured_velocity,now,last_motion_step_)) {
+            if (trace) trace->status=ControlTickStatus::MOTION_REJECTED;
             // 控制状态不可用（例如超长控制周期或越界），故障锁存优先于下发。
             stop_.requestStop();
             mailbox_.clear();
             return false;
         }
         command.position=last_motion_step_.command_deg;
+        if (trace) trace->reference_deg=last_motion_step_.reference_deg;
     } else {
         // S4 单独测试和历史调用保留目标位置直通。
         for (std::size_t i=0;i<kServoCount;++i)
             command.position[i]=std::clamp(targets[i],-90.0f,90.0f);
+    }
+    if (trace) {
+        trace->command_deg=command.position;
+        trace->status=ControlTickStatus::PUBLISHED;
     }
     command.sequence = ++sequence_;
     command.generation = stop_.generation();
