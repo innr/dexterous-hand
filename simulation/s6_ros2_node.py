@@ -5,6 +5,7 @@ Unmanaged default preserves S6-03 regression behavior. Simulation only.
 from __future__ import annotations
 
 import argparse
+import time
 from pathlib import Path
 
 from .fetch_leap_menagerie import DEST
@@ -50,6 +51,8 @@ def main() -> None:
             self.lifecycle_active = not self.managed
             self.armed = not self.managed
             self.next_epoch = 1
+            self.last_supervisor_heartbeat = None
+            self.supervisor_lease_s = 0.35
             self.plant = None
             self.session = None
             if not self.managed:
@@ -62,6 +65,8 @@ def main() -> None:
             self.status_pub = self.create_publisher(String, "/leap/sim_status", 10)
             self.epoch_pub = self.create_publisher(UInt64, "/leap/sim_epoch", epoch_qos)
             self.create_subscription(JointCommand, "/leap/joint_command", self.on_command, 10)
+            self.create_subscription(UInt64, "/leap/supervisor_heartbeat",
+                                     self.on_supervisor_heartbeat, 10)
             self.create_service(SetBool, "/leap/sim_pause", self.on_pause)
             self.create_service(Trigger, "/leap/sim_reset", self.on_reset)
             self.create_service(Trigger, "/leap/sim_stop", self.on_stop)
@@ -149,6 +154,13 @@ def main() -> None:
             self.status_pub.publish(String(data=self.session.state))
             self.epoch_pub.publish(UInt64(data=self.session.epoch))
 
+        def on_supervisor_heartbeat(self, _msg: UInt64) -> None:
+            self.last_supervisor_heartbeat = time.monotonic()
+
+        def supervisor_alive(self) -> bool:
+            return (self.last_supervisor_heartbeat is not None and
+                    time.monotonic() - self.last_supervisor_heartbeat <= self.supervisor_lease_s)
+
         def on_command(self, msg: JointCommand) -> None:
             try:
                 if not self.lifecycle_active or not self.armed or self.session is None:
@@ -166,6 +178,10 @@ def main() -> None:
 
         def on_tick(self) -> None:
             try:
+                if self.managed and self.armed and not self.supervisor_alive():
+                    self.armed = False
+                    self.session.stop()
+                    raise RuntimeError("external supervisor heartbeat lease expired")
                 if self.lifecycle_active and self.session is not None:
                     self.session.tick()
             except Exception as exc:
@@ -218,9 +234,11 @@ def main() -> None:
                     self.session.stop()  # Disarm is a latched safety action.
                 response.success = True
                 response.message = "disarmed and SAFE_STOP latched"
-            elif not self.lifecycle_active or self.session is None or self.session.state != "READY":
+            elif (not self.lifecycle_active or self.session is None or
+                  self.session.state != "READY" or
+                  (self.managed and not self.supervisor_alive())):
                 response.success = False
-                response.message = "arm requires active READY lifecycle state"
+                response.message = "arm requires active READY state and live supervisor heartbeat"
             else:
                 self.armed = True
                 response.success = True

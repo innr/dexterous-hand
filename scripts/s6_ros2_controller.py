@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import time
 
 def main() -> None:
     parser = argparse.ArgumentParser()
@@ -23,6 +24,8 @@ def main() -> None:
             super().__init__("leap_s6_test_controller")
             self.names = [x["mujoco_joint"] for x in load_contract()]
             self.active = not args.managed
+            self.last_supervisor_heartbeat = None
+            self.supervisor_lease_s = 0.35
             self.heartbeat_seq = 0
             self.heartbeat_pub = self.create_publisher(
                 UInt64, "/leap/controller_heartbeat", 10)
@@ -35,6 +38,8 @@ def main() -> None:
             qos = QoSProfile(depth=1, reliability=ReliabilityPolicy.RELIABLE,
                              durability=DurabilityPolicy.TRANSIENT_LOCAL)
             self.create_subscription(UInt64, "/leap/sim_epoch", self.on_epoch, qos)
+            self.create_subscription(UInt64, "/leap/supervisor_heartbeat",
+                                     self.on_supervisor_heartbeat, 10)
             self.timer = self.create_timer(
                 0.02, self.tick, clock=Clock(clock_type=ClockType.STEADY_TIME))
 
@@ -42,6 +47,8 @@ def main() -> None:
             return TransitionCallbackReturn.SUCCESS
 
         def on_activate(self, state):
+            if args.managed and not self.supervisor_alive():
+                return TransitionCallbackReturn.FAILURE
             self.seq = 0
             self.clock = None
             self.epoch = None
@@ -62,6 +69,13 @@ def main() -> None:
             self.active = False
             return TransitionCallbackReturn.SUCCESS
 
+        def on_supervisor_heartbeat(self, _msg):
+            self.last_supervisor_heartbeat = time.monotonic()
+
+        def supervisor_alive(self):
+            return (self.last_supervisor_heartbeat is not None and
+                    time.monotonic() - self.last_supervisor_heartbeat <= self.supervisor_lease_s)
+
         def on_clock(self, msg):
             self.clock = msg.clock
 
@@ -73,6 +87,9 @@ def main() -> None:
         def tick(self):
             self.heartbeat_seq += 1
             self.heartbeat_pub.publish(UInt64(data=self.heartbeat_seq))
+            if args.managed and self.active and not self.supervisor_alive():
+                self.active = False  # Fail closed if the external supervisor dies.
+                self.get_logger().error("external supervisor heartbeat lease expired")
             if not self.active or self.clock is None or self.epoch is None:
                 return
             cmd = JointCommand()

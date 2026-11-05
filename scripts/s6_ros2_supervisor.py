@@ -50,6 +50,9 @@ def main() -> None:
                              durability=DurabilityPolicy.TRANSIENT_LOCAL)
             self.status_pub = self.create_publisher(
                 String, "/leap/supervisor_status", qos)
+            self.heartbeat_pub = self.create_publisher(
+                UInt64, "/leap/supervisor_heartbeat", 10)
+            self.heartbeat_seq = 0
             self.create_subscription(String, "/leap/sim_status", self.on_sim_status, 10)
             self.create_subscription(UInt64, "/leap/controller_heartbeat",
                                      self.on_controller_heartbeat, 10)
@@ -112,6 +115,8 @@ def main() -> None:
     signal.signal(signal.SIGINT, handle_signal)
 
     def pump(duration=0.03):
+        node.heartbeat_seq += 1
+        node.heartbeat_pub.publish(UInt64(data=node.heartbeat_seq))
         rclpy.spin_once(node, timeout_sec=duration)
 
     def wait(predicate, timeout, what, *, check_children=True):
