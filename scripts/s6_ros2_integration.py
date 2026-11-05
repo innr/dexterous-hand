@@ -34,10 +34,13 @@ def main() -> None:
 
     names = [x["mujoco_joint"] for x in load_contract()]
     deadline = time.monotonic() + args.timeout
+    log_path = Path("build/s6_ros2_simulator.log")
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    sim_log = log_path.open("w", encoding="utf-8")
     simulator = subprocess.Popen(
         [sys.executable, "-m", "simulation.s6_ros2_node",
          "--bridge", str(args.bridge.resolve())],
-        stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
+        stdout=sim_log, stderr=subprocess.STDOUT)
     controller = None
     rclpy.init()
 
@@ -51,7 +54,8 @@ def main() -> None:
             self.epoch = None
             self.statuses = []
             self.pub = self.create_publisher(JointCommand, "/leap/joint_command", 10)
-            self.create_subscription(ClockMsg, "/clock", self.on_clock, 10)
+            clock_qos = QoSProfile(depth=10, reliability=ReliabilityPolicy.BEST_EFFORT)
+            self.create_subscription(ClockMsg, "/clock", self.on_clock, clock_qos)
             self.create_subscription(JointState, "/joint_states", self.on_state, 10)
             self.create_subscription(String, "/leap/sim_status", self.on_status, 10)
             qos = QoSProfile(depth=1, reliability=ReliabilityPolicy.RELIABLE,
@@ -87,8 +91,10 @@ def main() -> None:
             rclpy.spin_once(obs, timeout_sec=0.03)
             if predicate():
                 return
+        sim_log.flush()
+        detail = log_path.read_text(encoding="utf-8")[-3000:]
         raise AssertionError(f"timeout waiting for {what}: status={obs.status}, "
-                             f"epoch={obs.epoch}, clock={obs.sim_clock_us}")
+                             f"epoch={obs.epoch}, clock={obs.sim_clock_us}\\n{detail}")
 
     def service(client, request, what):
         spin_until(lambda: client.service_is_ready(), what=f"{what} service")
@@ -187,6 +193,7 @@ def main() -> None:
             except subprocess.TimeoutExpired:
                 simulator.kill()
                 simulator.wait(timeout=3)
+        sim_log.close()
 
 
 if __name__ == "__main__":

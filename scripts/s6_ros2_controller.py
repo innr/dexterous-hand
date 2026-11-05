@@ -25,7 +25,8 @@ def main() -> None:
             self.epoch = None
             self.seq = 0
             self.pub = self.create_publisher(JointCommand, "/leap/joint_command", 10)
-            self.create_subscription(ClockMsg, "/clock", self.on_clock, 10)
+            clock_qos = QoSProfile(depth=10, reliability=ReliabilityPolicy.BEST_EFFORT)
+            self.create_subscription(ClockMsg, "/clock", self.on_clock, clock_qos)
             qos = QoSProfile(depth=1, reliability=ReliabilityPolicy.RELIABLE,
                              durability=DurabilityPolicy.TRANSIENT_LOCAL)
             self.create_subscription(UInt64, "/leap/sim_epoch", self.on_epoch, qos)
