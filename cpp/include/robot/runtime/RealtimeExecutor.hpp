@@ -20,7 +20,9 @@ struct RuntimeStats {
     std::uint64_t published_commands = 0;
     std::uint64_t deadline_misses = 0;
     std::uint64_t skipped_cycles = 0;
-    std::uint64_t communication_polls = 0;
+    std::uint64_t communication_polls = 0; // 完整 16 路轮询次数。
+    std::uint64_t feedback_batches = 0; // 分片执行次数。
+    std::uint64_t feedback_reads = 0; // 尝试读取的舵机总数。
     std::uint64_t sent_servos = 0;
     std::uint64_t worker_faults = 0;
     std::int64_t max_start_lateness_us = 0;
@@ -35,6 +37,7 @@ public:
     struct Config {
         std::chrono::milliseconds control_period{10}; // 100 Hz
         std::chrono::milliseconds communication_pause{1};
+        std::size_t feedback_batch_size = 4; // 每批最多 4 路，优先给新命令发送机会。
     };
 
     RealtimeExecutor(ControlLoop& control, CommunicationWorker& communication,

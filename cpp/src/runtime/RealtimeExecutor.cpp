@@ -23,7 +23,8 @@ RealtimeExecutor::RealtimeExecutor(ControlLoop& control, CommunicationWorker& co
     : control_(control), communication_(communication), feedback_(feedback),
       stop_(stop), config_(config) {
     if (config_.control_period <= std::chrono::milliseconds::zero() ||
-        config_.communication_pause <= std::chrono::milliseconds::zero())
+        config_.communication_pause <= std::chrono::milliseconds::zero() ||
+        config_.feedback_batch_size == 0 || config_.feedback_batch_size > kServoCount)
         throw std::invalid_argument("invalid runtime period");
 }
 
@@ -139,11 +140,13 @@ void RealtimeExecutor::communicationMain() noexcept {
             // 只有本线程访问总线；读一整轮超过 10 ms 不会阻塞控制线程。
             const auto sent = communication_.processCommands(Clock::now());
             if (stopping_.load()) break;
-            communication_.pollFeedbackRealTime();
+            const auto batch = communication_.pollFeedbackSliceRealTime(config_.feedback_batch_size);
             {
                 std::lock_guard<std::mutex> lock(stats_mutex_);
                 stats_.sent_servos += sent;
-                ++stats_.communication_polls;
+                ++stats_.feedback_batches;
+                stats_.feedback_reads += batch.attempted;
+                if (batch.completed_round) ++stats_.communication_polls;
             }
             std::unique_lock<std::mutex> lock(wake_mutex_);
             if (wake_cv_.wait_for(lock, config_.communication_pause,
