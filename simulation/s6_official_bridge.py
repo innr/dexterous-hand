@@ -111,6 +111,7 @@ class SimSession:
         self.epoch = 0
         self.state = "READY"
         self.target: list[float] | None = None
+        self.target_stamp_us: int | None = None
         self.last_command: list[float] | None = None
 
     def set_target(self, names: list[str], positions: list[float],
@@ -132,6 +133,7 @@ class SimSession:
                for i, v in enumerate(target)):
             raise ValueError("command exceeds official model and C++ intersection limits")
         self.target = target
+        self.target_stamp_us = stamp_us
 
     def tick(self) -> None:
         if self.state in ("PAUSED", "SAFE_STOP", "FAULT"):
@@ -140,6 +142,8 @@ class SimSession:
             if self.target is None:
                 self.plant.hold_and_advance()
                 return
+            if self.target_stamp_us is None or (self.plant.time_us - self.target_stamp_us > COMMAND_TTL_US):
+                raise RuntimeError("ROS joint command TTL expired")
             p, v = self.plant.feedback()
             command = self.bridge.step(self.plant.time_us, p, v, self.target)
             self.plant.apply(command)
@@ -155,15 +159,24 @@ class SimSession:
             raise ValueError("latched stop; explicit reset required")
         if enabled:
             self.target = None
+            self.target_stamp_us = None
+            self.bridge.close()  # Freeze old trajectory state; no queued commands survive resume.
             self.state = "PAUSED"
         elif self.state == "PAUSED":
             # Resume does not replay commands queued before pause.
             self.target = None
-            self.state = "READY"
+            self.target_stamp_us = None
+            try:
+                self.bridge = self.bridge_factory(self.bridge_executable)
+                self.state = "READY"
+            except Exception:
+                self.state = "FAULT"
+                raise
 
     def stop(self) -> None:
         self.state = "SAFE_STOP"
         self.target = None
+        self.target_stamp_us = None
         self.last_command = None
         self.bridge.close()
 
@@ -173,6 +186,7 @@ class SimSession:
         self.plant.reset()
         self.epoch += 1
         self.target = None
+        self.target_stamp_us = None
         self.last_command = None
         self.state = "READY"
         try:
@@ -194,6 +208,8 @@ def smoke(executable: Path, model_path: Path, seconds: float) -> dict:
         session.set_target(plant.names, [0.20] * COUNT,
                            epoch=session.epoch, stamp_us=0)
         for _ in range(round(seconds / CONTROL_DT)):
+            session.set_target(plant.names, [0.20] * COUNT,
+                               epoch=session.epoch, stamp_us=plant.time_us)
             session.tick()
         position, _ = plant.feedback()
         return {"model": "official_menagerie_right", "epoch": session.epoch,
