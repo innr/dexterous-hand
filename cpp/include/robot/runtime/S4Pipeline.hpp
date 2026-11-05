@@ -1,5 +1,6 @@
 #pragma once
 #include "robot/runtime/FeedbackBuffer.hpp"
+#include "robot/runtime/ControlTelemetry.hpp"
 #include "robot/control/MotionControlCore.hpp"
 #include "robot/runtime/CommandMailbox.hpp"
 #include "robot/safety/StopCoordinator.hpp"
@@ -32,7 +33,7 @@ public:
     void setTargets(const std::array<float, kServoCount>& targets);
     // 必须在运行器启动前配置；单独使用 ControlLoop 时保留 S4 直通兼容模式。
     void enableMotionControl(MotionControlConfig config);
-    bool tick(ServoClock::time_point now);
+    bool tick(ServoClock::time_point now, ControlTelemetryFrame* trace = nullptr);
     // 反馈硬异常时清除尚未被通信线程取走的旧命令。
     void clearPendingCommands();
 private:

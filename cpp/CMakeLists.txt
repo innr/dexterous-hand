@@ -31,6 +31,7 @@ add_library(robot_core STATIC
     src/runtime/S4Pipeline.cpp
     src/runtime/RealtimeExecutor.cpp
     src/runtime/ReadOnlyBench.cpp
+    src/runtime/ControlTelemetry.cpp
 )
 target_include_directories(robot_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 target_link_libraries(robot_core PUBLIC Threads::Threads)

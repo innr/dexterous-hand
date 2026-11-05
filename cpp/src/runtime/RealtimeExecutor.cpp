@@ -123,12 +123,33 @@ void RealtimeExecutor::controlMain() noexcept {
                 stopping_.store(true);
                 wake_cv_.notify_all();
             }
-            const bool published = !safety.startup_waiting && !safety.inhibit_motion &&
-                                   !safety.request_safe_stop &&
-                                   control_.tick(begin);
+            ControlTelemetryFrame trace;
+            const bool allowed=!safety.startup_waiting && !safety.inhibit_motion &&
+                               !safety.request_safe_stop;
+            const bool published=allowed && control_.tick(
+                begin,config_.telemetry?&trace:nullptr);
+            if (!allowed && config_.telemetry) {
+                trace.status=ControlTickStatus::SAFETY_BLOCKED;
+                trace.feedback_sequence=feedback.sequence;
+                for (std::size_t i=0;i<kServoCount;++i) {
+                    trace.measured_deg[i]=feedback.position[i];
+                    trace.measured_velocity_deg_s[i]=feedback.velocity[i];
+                    trace.feedback_valid[i]=feedback.valid[i] && begin>=feedback.timestamp[i];
+                    trace.feedback_age_us[i]=trace.feedback_valid[i] ?
+                        micros(begin-feedback.timestamp[i]) : -1;
+                }
+            }
             const auto finished = Clock::now();
             const bool missed = finished > scheduled + config_.control_period;
             scheduler.completeCycle(finished); // 只跳过后续过期时刻，不补跑。
+            if (config_.telemetry) {
+                trace.tick=++telemetry_tick_;
+                trace.time_us=micros(begin.time_since_epoch());
+                trace.start_lateness_us=micros(begin-scheduled);
+                trace.control_duration_us=micros(finished-begin);
+                trace.safety_state=static_cast<std::uint8_t>(safety.state);
+                (void)config_.telemetry->tryPush(trace);
+            }
             {
                 std::lock_guard<std::mutex> lock(stats_mutex_);
                 ++stats_.control_ticks;
