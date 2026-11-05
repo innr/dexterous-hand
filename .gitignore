@@ -9,3 +9,6 @@ build/
 .idea/
 .vscode/
 
+
+# Pinned third-party LEAP model assets downloaded on demand.
+third_party/mujoco_menagerie/
