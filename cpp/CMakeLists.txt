@@ -136,3 +136,24 @@ endif()
 add_executable(test_s5_command_ttl tests/test_s5_command_ttl.cpp)
 target_link_libraries(test_s5_command_ttl PRIVATE robot_core)
 add_test(NAME S5CommandTtlTest COMMAND test_s5_command_ttl)
+
+# S6-01：16 路 MuJoCo 与现有 C++17 控制核心的进程协议适配。
+add_executable(s6_control_bridge examples/s6_control_bridge.cpp)
+target_link_libraries(s6_control_bridge PRIVATE robot_core)
+if(Python3_Interpreter_FOUND)
+    add_test(NAME S6BridgeProtocolTest
+             COMMAND "${Python3_EXECUTABLE}"
+                     "${CMAKE_CURRENT_SOURCE_DIR}/../tests/test_s6_bridge_protocol.py"
+                     "$<TARGET_FILE:s6_control_bridge>")
+    execute_process(COMMAND "${Python3_EXECUTABLE}" -c "import mujoco, numpy"
+                    RESULT_VARIABLE S6_MUJOCO_IMPORT_RESULT
+                    OUTPUT_QUIET ERROR_QUIET)
+    if(S6_MUJOCO_IMPORT_RESULT EQUAL 0)
+        add_test(NAME S6MuJoCoSmokeTest
+                 COMMAND "${Python3_EXECUTABLE}" -m simulation.s6_mujoco_bridge
+                         --bridge "$<TARGET_FILE:s6_control_bridge>"
+                         --seconds 0.6 --assert-motion)
+        set_tests_properties(S6MuJoCoSmokeTest PROPERTIES
+            WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/..")
+    endif()
+endif()

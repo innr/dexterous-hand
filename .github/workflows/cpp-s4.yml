@@ -11,6 +11,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Install MuJoCo for S6 smoke test
+        run: python3 -m pip install "mujoco>=3.1,<4" "numpy>=1.26,<3"
       - name: Configure
         run: cmake -S cpp -B build/cpp -DCMAKE_BUILD_TYPE=Debug
       - name: Build

@@ -46,3 +46,18 @@ pytest
 
 控制器会生成平滑的周期弯曲目标。下一阶段应将简化模型替换为 LEAP Hand
 官方 URDF/MJCF，并建立与真实 STS3215 舵机一致的关节方向、零位和限位表。
+
+## S6-01：16 关节 MuJoCo 与 C++ 控制核心闭环
+
+```bash
+cmake -S cpp -B build/cpp -DCMAKE_BUILD_TYPE=Debug
+cmake --build build/cpp --parallel
+python3 -m pip install "mujoco>=3.1,<4" "numpy>=1.26,<3"
+python3 -m simulation.s6_mujoco_bridge --bridge build/cpp/s6_control_bridge --seconds 1 --assert-motion
+ctest --test-dir build/cpp --output-on-failure
+```
+
+使用 16-DOF **替身动力学模型**（不是官方 LEAP URDF），Python MuJoCo 以
+500Hz 步进，C++ `ControlLoop` / `MotionControlCore` / `CommunicationWorker`
+以仿真时钟 100Hz 运行。输出统计包含关节实际运动幅度。
+没有任何串口/硬件使能；官方 LEAP 模型和 ROS2 接入在后续 S6 任务完成。
