@@ -105,3 +105,10 @@ add_executable(s5_response_analyzer examples/s5_response_analyzer.cpp)
 target_link_libraries(s5_response_analyzer PRIVATE robot_core)
 add_executable(s5_virtual_tuning examples/s5_virtual_tuning.cpp)
 target_link_libraries(s5_virtual_tuning PRIVATE robot_core)
+
+# S5-08 CLI 端到端：仿真导出 CSV -> 同一 CSV 由分析器成功解析。
+set(S5_TUNING_CSV "${CMAKE_CURRENT_BINARY_DIR}/s5_tuning_best.csv")
+add_test(NAME S5VirtualTuningCliTest COMMAND s5_virtual_tuning "${S5_TUNING_CSV}")
+set_tests_properties(S5VirtualTuningCliTest PROPERTIES FIXTURES_SETUP S5_TUNING_CSV_READY)
+add_test(NAME S5ResponseAnalyzerCliTest COMMAND s5_response_analyzer "${S5_TUNING_CSV}")
+set_tests_properties(S5ResponseAnalyzerCliTest PROPERTIES FIXTURES_REQUIRED S5_TUNING_CSV_READY)

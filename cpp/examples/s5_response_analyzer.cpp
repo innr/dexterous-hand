@@ -9,6 +9,9 @@
 #include <vector>
 
 namespace {
+void stripCR(std::string& line) {
+    if (!line.empty() && line.back()=='\\r') line.pop_back();
+}
 double parse(const std::string& value) {
     std::size_t consumed=0;
     const auto n=std::stod(value,&consumed);
@@ -16,11 +19,13 @@ double parse(const std::string& value) {
     return n;
 }
 robot::ResponseSample parseRow(const std::string& row) {
-    std::istringstream input(row);
+    std::string cleaned=row;
+    stripCR(cleaned);
+    std::istringstream input(cleaned);
     std::string cell;
     std::vector<double> columns;
     while (std::getline(input,cell,',')) columns.push_back(parse(cell));
-    if (columns.size()!=6 || (!row.empty() && row.back()==','))
+    if (columns.size()!=6 || (!cleaned.empty() && cleaned.back()==','))
         throw std::invalid_argument("expected 6 numeric CSV columns");
     return {columns[0],columns[1],columns[2],columns[3],columns[4],columns[5]};
 }
@@ -40,8 +45,10 @@ int main(int argc,char** argv) {
         std::ifstream file(argv[1]);
         if (!file) throw std::runtime_error("cannot open input CSV");
         std::string line;
-        if (!std::getline(file,line) ||
-            line!="time_s,target_deg,reference_deg,command_deg,measured_deg,feedback_age_ms")
+        if (!std::getline(file,line))
+            throw std::invalid_argument("missing CSV header");
+        stripCR(line);
+        if (line!="time_s,target_deg,reference_deg,command_deg,measured_deg,feedback_age_ms")
             throw std::invalid_argument("unexpected CSV header");
         std::vector<robot::ResponseSample> samples;
         while (std::getline(file,line)) {

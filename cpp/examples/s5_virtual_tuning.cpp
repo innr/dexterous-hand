@@ -20,7 +20,7 @@ int main(int argc,char** argv) {
         };
         const auto ranked=robot::rankVirtualCandidates(candidates);
         std::cout<<std::fixed<<std::setprecision(4);
-        std::cout<<"OFFLINE VIRTUAL PLANT ONLY — NOT HARDWARE TUNING\n";
+        std::cout<<"OFFLINE VIRTUAL PLANT ONLY -- NOT HARDWARE TUNING\n";
         std::cout<<"rank,kp,kd_seconds,score,rms_reference_deg,overshoot_deg,settling_s\n";
         for (std::size_t i=0;i<ranked.size();++i) {
             const auto& x=ranked[i];
