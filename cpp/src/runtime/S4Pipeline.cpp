@@ -100,8 +100,14 @@ CommunicationWorker::CommunicationWorker(IServoTransport& bus, FeedbackBuffer& f
 std::size_t CommunicationWorker::processCommands(ServoClock::time_point now) {
     const auto cmd = mailbox_.takeLatest();
     if (!cmd || now < cmd->created_at || now - cmd->created_at > max_command_age_) return 0;
+    // processCommands(now) 的 now 可为虚拟仿真时钟；通过同一调用内的
+    // steady_clock 经过时间推进该时钟，逐路检查 TTL，而不混用时钟 epoch。
+    const auto wall_start = ServoClock::now();
     std::size_t sent = 0;
     for (std::size_t i = 0; i < kServoCount; ++i) {
+        const auto joint_now = now + (ServoClock::now() - wall_start);
+        if (joint_now < cmd->created_at || joint_now - cmd->created_at > max_command_age_)
+            break; // 整批中途过期：丢弃剩余目标，不继续写舵机。
         if (!std::isfinite(cmd->position[i])) {
             stop_.requestStop();
             break;
