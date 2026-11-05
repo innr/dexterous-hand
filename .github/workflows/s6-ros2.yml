@@ -32,7 +32,7 @@ jobs:
             apt-get update -qq
             apt-get install -y -qq python3-colcon-common-extensions ros-jazzy-rosidl-default-generators python3-venv python3-pip cmake g++ libgl1 libegl1
             source /opt/ros/jazzy/setup.bash
-            colcon build --base-paths ros2_ws/src --build-base build/s6_ros2_pkg --install-base build/s6_ros2_install --log-base build/s6_ros2_log
+            colcon --log-base build/s6_ros2_log build --base-paths ros2_ws/src --build-base build/s6_ros2_pkg --install-base build/s6_ros2_install
             source build/s6_ros2_install/setup.bash
             python3 -m venv --system-site-packages /tmp/leap-s6-venv
             source /tmp/leap-s6-venv/bin/activate
