@@ -51,7 +51,7 @@ def main() -> None:
             epoch_qos = QoSProfile(depth=1, reliability=ReliabilityPolicy.RELIABLE,
                                    durability=DurabilityPolicy.TRANSIENT_LOCAL)
             self.clock_pub = self.create_publisher(ClockMsg, "/clock", clock_qos)
-            self.state_pub = self.create_publisher(JointState, "/leap/joint_states", 10)
+            self.state_pub = self.create_publisher(JointState, "/joint_states", 10)
             self.status_pub = self.create_publisher(String, "/leap/sim_status", 10)
             self.epoch_pub = self.create_publisher(UInt64, "/leap/sim_epoch", epoch_qos)
             self.create_subscription(JointState, "/leap/joint_command", self.on_command, 10)

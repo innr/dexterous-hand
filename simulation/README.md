@@ -83,7 +83,7 @@ ctest --test-dir build/cpp --output-on-failure -C Debug
 
 ```bash
 python3 -m simulation.s6_ros2_node --bridge build/cpp/s6_control_bridge
-ros2 topic echo /leap/joint_states
+ros2 topic echo /joint_states
 ros2 topic echo /leap/sim_status
 ros2 topic echo /leap/sim_epoch
 ros2 service call /leap/sim_pause std_srvs/srv/SetBool "{data: true}"

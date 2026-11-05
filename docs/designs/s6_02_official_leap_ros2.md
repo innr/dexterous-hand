@@ -24,11 +24,11 @@ SimSession (READY / NORMAL / PAUSED / SAFE_STOP / FAULT)
      -> OfficialPlant(qpos/qvel, model-specific indices)
      -> s6_control_bridge C++17 (S5 ControlLoop + MotionControlCore + safety)
      -> OfficialPlant 16 position actuators -> 5 x mj_step(2ms)
-     -> /clock, /leap/joint_states, /leap/sim_status, /leap/sim_epoch
+     -> /clock, /joint_states, /leap/sim_status, /leap/sim_epoch
 ```
 - ROS2 adapter `simulation/s6_ros2_node.py` imports rclpy lazily. Pure simulation core and tests do not require ROS2.
 - Physics driver uses steady-clock 10ms timer; published timestamps always from MuJoCo time, never wall time. Simulation may run slower than wall time; this is not a hard realtime guarantee.
-- `/leap/joint_states`: `sensor_msgs/msg/JointState`, names in official MJCF mapping order, position rad, velocity rad/s, effort empty, stamp = `/clock`. ROS2 consumers set `use_sim_time:=true`.
+- `/joint_states`: `sensor_msgs/msg/JointState`, names in official MJCF mapping order, position rad, velocity rad/s, effort empty, stamp = `/clock`. ROS2 consumers set `use_sim_time:=true`.
 - `/leap/joint_command`: `sensor_msgs/msg/JointState`, 16 unique official names, positions rad, header stamp in current simulation time. **Simulation-only contract** requires `header.frame_id="sim_epoch:<N>"` to reject commands from previous reset epochs. This overloads frame_id and must be replaced with a custom stamped command message before production ROS2 deployment.
 - `/leap/sim_epoch`: `std_msgs/msg/UInt64`, transient-local; `/leap/sim_status`: `std_msgs/msg/String`.
 - Services: `/leap/sim_pause` `std_srvs/SetBool`, `/leap/sim_reset` `std_srvs/Trigger`, `/leap/sim_stop` `std_srvs/Trigger`.
