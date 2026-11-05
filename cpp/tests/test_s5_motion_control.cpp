@@ -72,9 +72,10 @@ int main() {
     measured.fill(0.0f);
     velocity.fill(5.0f);
     targets.fill(0.0f);
-    assert(with_damping.step(targets,measured,velocity,origin,step));
-    assert(step.command_deg[0]<0.0f);
-    assert(step.command_deg[1]>=0.0f);
+    for (int n=0;n<20;++n)
+        assert(with_damping.step(targets,measured,velocity,
+                                 origin+milliseconds(10*n),step));
+    assert(step.command_deg[0]<step.command_deg[1]); // 更大的 KD 产生更强速度阻尼。
 
     MotionControlCore invalid_motion(config);
     measured.fill(100.0f);
