@@ -17,7 +17,7 @@ MotionControlCore::MotionControlCore(MotionControlConfig config) : config_(confi
             c.max_acceleration_deg_s2<=0 || !std::isfinite(c.kp) || c.kp<0 ||
             !std::isfinite(c.kd_seconds) || c.kd_seconds<0)
             throw std::invalid_argument("invalid joint motion config");
-        controllers_[i]=std::make_unique<PDController>(c.kp,c.kd_seconds);
+        controllers_[i].emplace(c.kp,c.kd_seconds);
     }
 }
 
@@ -41,10 +41,9 @@ bool MotionControlCore::step(const std::array<float,kServoCount>& targets,
         const auto& c=config_.joints[i];
         if (!planners_[i]) {
             // 首次从实测位置起步，绝不从默认 0° 突然追赶。
-            planners_[i]=std::make_unique<JointTrajectoryPlanner>(
+            planners_[i].emplace(
                 measured[i],c.max_velocity_deg_s,c.max_acceleration_deg_s2);
-            output_limiters_[i]=std::make_unique<AccelerationLimiter>(
-                c.max_acceleration_deg_s2);
+            output_limiters_[i].emplace(c.max_acceleration_deg_s2);
             last_output_[i]=measured[i];
         }
         const auto target=std::clamp(targets[i],c.min_deg,c.max_deg);
@@ -75,8 +74,7 @@ bool MotionControlCore::step(const std::array<float,kServoCount>& targets,
         // 触及机械软限位时强制停止输出速度；软限位优先于加速度约束。
         if ((next_position==c.min_deg && next_velocity<0) ||
             (next_position==c.max_deg && next_velocity>0))
-            output_limiters_[i]=std::make_unique<AccelerationLimiter>(
-                c.max_acceleration_deg_s2);
+            output_limiters_[i].emplace(c.max_acceleration_deg_s2);
     }
     last_tick_=now;
     result=candidate;

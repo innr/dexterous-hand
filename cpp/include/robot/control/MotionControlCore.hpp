@@ -5,7 +5,6 @@
 #include "robot/runtime/FeedbackBuffer.hpp"
 #include <array>
 #include <chrono>
-#include <memory>
 #include <optional>
 
 namespace robot {
@@ -42,9 +41,9 @@ public:
               ServoClock::time_point now, MotionStep& result);
 private:
     MotionControlConfig config_;
-    std::array<std::unique_ptr<JointTrajectoryPlanner>,kServoCount> planners_{};
-    std::array<std::unique_ptr<AccelerationLimiter>,kServoCount> output_limiters_{};
-    std::array<std::unique_ptr<PDController>,kServoCount> controllers_{};
+    std::array<std::optional<JointTrajectoryPlanner>,kServoCount> planners_{};
+    std::array<std::optional<AccelerationLimiter>,kServoCount> output_limiters_{};
+    std::array<std::optional<PDController>,kServoCount> controllers_{};
     std::array<float,kServoCount> last_output_{};
     std::optional<ServoClock::time_point> last_tick_;
 };

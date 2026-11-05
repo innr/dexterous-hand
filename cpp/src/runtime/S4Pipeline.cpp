@@ -35,7 +35,8 @@ void ControlLoop::setTargets(const std::array<float, kServoCount>& targets) {
 }
 bool ControlLoop::tick(ServoClock::time_point now) {
     if (!stop_.commandsAllowed()) return false;
-    const auto state = estimator_.estimate(feedback_.read(), now);
+    const auto snapshot=feedback_.read();
+    const auto state = estimator_.estimate(snapshot, now);
     // 第一版保守处理：任意一路反馈过期，禁止发布整手新动作。
     for (bool valid : state.valid) if (!valid) return false;
     std::array<float, kServoCount> targets;
@@ -47,7 +48,6 @@ bool ControlLoop::tick(ServoClock::time_point now) {
     ServoCommand command;
     if (motion_) {
         std::array<float,kServoCount> measured_velocity{};
-        const auto snapshot=feedback_.read();
         for (std::size_t i=0;i<kServoCount;++i) measured_velocity[i]=snapshot.velocity[i];
         if (!motion_->step(targets,state.position,measured_velocity,now,last_motion_step_)) {
             // 控制状态不可用（例如超长控制周期或越界），故障锁存优先于下发。

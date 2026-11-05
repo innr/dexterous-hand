@@ -89,3 +89,8 @@ add_test(NAME S5FeedbackSlicingTest COMMAND test_s5_feedback_slicing)
 add_executable(test_s5_feedback_safety tests/test_s5_feedback_safety.cpp)
 target_link_libraries(test_s5_feedback_safety PRIVATE robot_core)
 add_test(NAME S5FeedbackSafetyTest COMMAND test_s5_feedback_safety)
+
+# S5-07：16路位置外环PD、轨迹与最终输出限速/限加速度。
+add_executable(test_s5_motion_control tests/test_s5_motion_control.cpp)
+target_link_libraries(test_s5_motion_control PRIVATE robot_core)
+add_test(NAME S5MotionControlTest COMMAND test_s5_motion_control)
