@@ -92,7 +92,8 @@ def main() -> None:
             if predicate():
                 return
         sim_log.flush()
-        detail = log_path.read_text(encoding="utf-8")[-3000:]
+        full_log = log_path.read_text(encoding="utf-8")
+        detail = full_log[:1200] + "\\n...\\n" + full_log[-2200:]
         raise AssertionError(f"timeout waiting for {what}: status={obs.status}, "
                              f"epoch={obs.epoch}, clock={obs.sim_clock_us}\\n{detail}")
 

@@ -19,6 +19,8 @@ Services: /leap/sim_pause, /leap/sim_reset, /leap/sim_stop.
   and at most 10ms in the future.
 - Within each epoch sequence strictly increases. Invalid/duplicate/out-of-order
   commands rejected without changing authorized target.
+- READY without authorized target: no physics ticks; /clock remains fixed until
+  a new valid command arrives. This avoids uncommanded gravity/contact drift.
 - PAUSED: no physics ticks, /clock freezes, clear target and close C++ bridge.
 - RESUME: epoch increments, sequence resets, C++ bridge recreated, fresh command required.
 - RESET: MuJoCo time rewinds to zero, epoch increments, command/sequence/bridge reset.

@@ -168,7 +168,8 @@ class SimSession:
         try:
             self.check_wall_watchdog()
             if self.target is None:
-                self.plant.hold_and_advance()
+                # READY is disarmed: no physics step and no stale position hold.
+                # Prevent uncommanded Menagerie gravity/contact drift at startup.
                 return
             if self.target_stamp_us is None or (self.plant.time_us - self.target_stamp_us > COMMAND_TTL_US):
                 raise RuntimeError("ROS joint command TTL expired")

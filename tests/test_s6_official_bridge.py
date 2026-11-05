@@ -58,8 +58,8 @@ def main(executable: Path) -> None:
         session.pause(False)
         assert session.epoch == 1  # resume barrier invalidates pre-pause DDS messages
         assert session.state == "READY" and session.target is None
-        session.tick()  # no old command replay; plant may advance holding pose
-        assert plant.time_us == frozen_time + 10_000
+        session.tick()  # READY remains disarmed until new authorization
+        assert plant.time_us == frozen_time
         session.set_target(names, [0.1] * 16, epoch=1, stamp_us=plant.time_us)
         session.tick()
         assert session.state == "NORMAL"
