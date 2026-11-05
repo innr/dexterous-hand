@@ -114,22 +114,25 @@ def main() -> None:
     def pump(duration=0.03):
         rclpy.spin_once(node, timeout_sec=duration)
 
-    def wait(predicate, timeout, what):
+    def wait(predicate, timeout, what, *, check_children=True):
         end = time.monotonic() + timeout
         while time.monotonic() < end and not shutdown:
-            if simulator is not None and simulator.poll() is not None:
-                raise RuntimeError(f"simulator exited during {what}")
-            if controller is not None and controller.poll() is not None:
-                raise RuntimeError(f"controller exited during {what}")
+            if check_children:
+                if simulator is not None and simulator.poll() is not None:
+                    raise RuntimeError(f"simulator exited during {what}")
+                if controller is not None and controller.poll() is not None:
+                    raise RuntimeError(f"controller exited during {what}")
             pump()
             if predicate():
                 return
         raise RuntimeError(f"timeout waiting for {what}")
 
-    def call(client, request, what, timeout=3.0):
-        wait(client.service_is_ready, timeout, f"{what} service")
+    def call(client, request, what, timeout=3.0, *, check_children=True):
+        wait(client.service_is_ready, timeout, f"{what} service",
+             check_children=check_children)
         future = client.call_async(request)
-        wait(future.done, timeout, f"{what} response")
+        wait(future.done, timeout, f"{what} response",
+             check_children=check_children)
         response = future.result()
         if response is None or not response.success:
             raise RuntimeError(f"{what} rejected: {getattr(response, 'message', '')}")
@@ -166,7 +169,8 @@ def main() -> None:
         # If simulator still exists, explicitly request its latched SAFE_STOP.
         if simulator is not None and simulator.poll() is None:
             try:
-                call(node.sim_stop, Trigger.Request(), "simulation SAFE_STOP", 1.5)
+                call(node.sim_stop, Trigger.Request(), "simulation SAFE_STOP", 1.5,
+                     check_children=False)
             except Exception as exc:
                 print(f"SAFE_STOP service unconfirmed: {exc}", flush=True)
 
