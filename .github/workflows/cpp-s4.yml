@@ -5,6 +5,10 @@ on:
   pull_request:
     paths:
       - "cpp/**"
+      - "simulation/**"
+      - "config/menagerie_right_mapping.json"
+      - "tests/test_s6_official_bridge.py"
+      - "docs/designs/s6_02_official_leap_ros2.md"
       - ".github/workflows/cpp-s4.yml"
 jobs:
   build:
@@ -13,9 +17,14 @@ jobs:
       - uses: actions/checkout@v4
       - name: Install MuJoCo for S6 smoke test
         run: python3 -m pip install "mujoco>=3.1,<4" "numpy>=1.26,<3"
+      - name: Download pinned official LEAP model (MIT)
+        run: python3 -m simulation.fetch_leap_menagerie
       - name: Configure
         run: cmake -S cpp -B build/cpp -DCMAKE_BUILD_TYPE=Debug
       - name: Build
         run: cmake --build build/cpp --parallel
       - name: Test
-        run: ctest --test-dir build/cpp --output-on-failure
+        run: |
+          python3 -m compileall -q simulation/s6_ros2_node.py
+          ctest --test-dir build/cpp -N | grep S6OfficialModelTest
+          ctest --test-dir build/cpp --output-on-failure

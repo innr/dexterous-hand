@@ -61,3 +61,41 @@ ctest --test-dir build/cpp --output-on-failure
 500Hz 步进，C++ `ControlLoop` / `MotionControlCore` / `CommunicationWorker`
 以仿真时钟 100Hz 运行。输出统计包含关节实际运动幅度。
 没有任何串口/硬件使能；官方 LEAP 模型和 ROS2 接入在后续 S6 任务完成。
+
+## S6-02：官方 LEAP Hand MJCF 与 ROS2
+
+使用 Google DeepMind MuJoCo Menagerie 的 **LEAP Hand 右手官方 MJCF**
+（MIT 授权，固定提交 `98a70c569c4c1b6da467a20012f766ee1f8dc521`）。
+仅用于仿真，不改变 STS3215 硬件映射。
+
+```bash
+python -m simulation.fetch_leap_menagerie
+cmake -S cpp -B build/cpp
+cmake --build build/cpp --config Debug
+# Linux/macOS:
+python -m simulation.s6_official_bridge --bridge build/cpp/s6_control_bridge --seconds 0.6 --assert-motion
+# Windows:
+python -m simulation.s6_official_bridge --bridge build/cpp/Debug/s6_control_bridge.exe --seconds 0.6 --assert-motion
+ctest --test-dir build/cpp --output-on-failure -C Debug
+```
+
+可选 ROS2 环境（例如 Ubuntu + ROS2 Jazzy，需先 source ROS2 环境）：
+
+```bash
+python3 -m simulation.s6_ros2_node --bridge build/cpp/s6_control_bridge
+ros2 topic echo /joint_states
+ros2 topic echo /leap/sim_status
+ros2 topic echo /leap/sim_epoch
+ros2 service call /leap/sim_pause std_srvs/srv/SetBool "{data: true}"
+ros2 service call /leap/sim_pause std_srvs/srv/SetBool "{data: false}"
+ros2 service call /leap/sim_reset std_srvs/srv/Trigger "{}"
+```
+
+控制输入：`/leap/joint_command` (`sensor_msgs/JointState`)，
+16 个官方 MJCF 名称（见 `config/menagerie_right_mapping.json`），
+`position` 单位 rad，`header.stamp` 使用当前 `/clock`，
+`header.frame_id` 必须是 `sim_epoch:<N>`（**临时仿真协议**，不是 TF 坐标系）。
+控制方至少每 100ms 仿真时间刷新一次，否则进入锁存 SAFE_STOP。
+暂停冻结仿真时间并清除目标；恢复后需新命令。
+重置将 epoch 加一，旧 epoch 命令不再接受。详情见
+`docs/designs/s6_02_official_leap_ros2.md`。

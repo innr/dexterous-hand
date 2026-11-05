@@ -157,3 +157,15 @@ if(Python3_Interpreter_FOUND)
             WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/..")
     endif()
 endif()
+
+# S6-02：官方 Menagerie LEAP MJCF 仿真安全会话回归（需先下载 pinned assets）。
+if(Python3_Interpreter_FOUND AND S6_MUJOCO_IMPORT_RESULT EQUAL 0)
+    if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/../third_party/mujoco_menagerie/leap_hand/right_hand.xml")
+        add_test(NAME S6OfficialModelTest
+                 COMMAND "${Python3_EXECUTABLE}"
+                         "${CMAKE_CURRENT_SOURCE_DIR}/../tests/test_s6_official_bridge.py"
+                         "$<TARGET_FILE:s6_control_bridge>")
+        set_tests_properties(S6OfficialModelTest PROPERTIES
+            WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/..")
+    endif()
+endif()

@@ -1,0 +1,104 @@
+{
+  "schema_version": 1,
+  "source": "google-deepmind/mujoco_menagerie/leap_hand/right_hand.xml",
+  "model_revision": "98a70c569c4c1b6da467a20012f766ee1f8dc521",
+  "note": "simulation-only ordering; hardware direction/zero and thumb axes NOT calibrated",
+  "joints": [
+    {
+      "id": 0,
+      "canonical": "index_mcp_side",
+      "mujoco_joint": "if_rot",
+      "actuator": "if_rot_act"
+    },
+    {
+      "id": 1,
+      "canonical": "index_mcp_forward",
+      "mujoco_joint": "if_mcp",
+      "actuator": "if_mcp_act"
+    },
+    {
+      "id": 2,
+      "canonical": "index_pip",
+      "mujoco_joint": "if_pip",
+      "actuator": "if_pip_act"
+    },
+    {
+      "id": 3,
+      "canonical": "index_dip",
+      "mujoco_joint": "if_dip",
+      "actuator": "if_dip_act"
+    },
+    {
+      "id": 4,
+      "canonical": "middle_mcp_side",
+      "mujoco_joint": "mf_rot",
+      "actuator": "mf_rot_act"
+    },
+    {
+      "id": 5,
+      "canonical": "middle_mcp_forward",
+      "mujoco_joint": "mf_mcp",
+      "actuator": "mf_mcp_act"
+    },
+    {
+      "id": 6,
+      "canonical": "middle_pip",
+      "mujoco_joint": "mf_pip",
+      "actuator": "mf_pip_act"
+    },
+    {
+      "id": 7,
+      "canonical": "middle_dip",
+      "mujoco_joint": "mf_dip",
+      "actuator": "mf_dip_act"
+    },
+    {
+      "id": 8,
+      "canonical": "ring_mcp_side",
+      "mujoco_joint": "rf_rot",
+      "actuator": "rf_rot_act"
+    },
+    {
+      "id": 9,
+      "canonical": "ring_mcp_forward",
+      "mujoco_joint": "rf_mcp",
+      "actuator": "rf_mcp_act"
+    },
+    {
+      "id": 10,
+      "canonical": "ring_pip",
+      "mujoco_joint": "rf_pip",
+      "actuator": "rf_pip_act"
+    },
+    {
+      "id": 11,
+      "canonical": "ring_dip",
+      "mujoco_joint": "rf_dip",
+      "actuator": "rf_dip_act"
+    },
+    {
+      "id": 12,
+      "canonical": "thumb_cmc_side",
+      "mujoco_joint": "th_cmc",
+      "actuator": "th_cmc_act"
+    },
+    {
+      "id": 13,
+      "canonical": "thumb_cmc_forward",
+      "mujoco_joint": "th_axl",
+      "actuator": "th_axl_act"
+    },
+    {
+      "id": 14,
+      "canonical": "thumb_mcp",
+      "mujoco_joint": "th_mcp",
+      "actuator": "th_mcp_act"
+    },
+    {
+      "id": 15,
+      "canonical": "thumb_ip",
+      "mujoco_joint": "th_ipl",
+      "actuator": "th_ipl_act"
+    }
+  ]
+}

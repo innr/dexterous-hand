@@ -20,6 +20,9 @@ dev = ["pytest>=8,<9"]
 [project.scripts]
 dexterous-hand-sim = "simulation.run_single_finger:main"
 dexterous-hand-leap-check = "simulation.run_leap_hand:main"
+leap-menagerie-fetch = "simulation.fetch_leap_menagerie:main"
+leap-official-sim = "simulation.s6_official_bridge:main"
+leap-ros2-sim = "simulation.s6_ros2_node:main"
 sts3215-scan = "hardware.scan_sts3215:main"
 leap-calibrate-zero = "hardware.calibrate_zero:main"
 
