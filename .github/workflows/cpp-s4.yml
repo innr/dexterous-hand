@@ -25,5 +25,6 @@ jobs:
         run: cmake --build build/cpp --parallel
       - name: Test
         run: |
+          python3 -m compileall -q simulation/s6_ros2_node.py
           ctest --test-dir build/cpp -N | grep S6OfficialModelTest
           ctest --test-dir build/cpp --output-on-failure

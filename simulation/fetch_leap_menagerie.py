@@ -23,9 +23,12 @@ FILES = (
 def fetch(destination: Path = DEST) -> Path:
     base = ("https://raw.githubusercontent.com/google-deepmind/"
             f"mujoco_menagerie/{REVISION}/leap_hand/")
+    revision_file = destination / "SOURCE_REVISION"
+    revision_matches = (revision_file.is_file() and
+                        revision_file.read_text(encoding="ascii").strip() == REVISION)
     for relative in FILES:
         path = destination / relative
-        if path.is_file() and path.stat().st_size:
+        if revision_matches and path.is_file() and path.stat().st_size:
             continue
         path.parent.mkdir(parents=True, exist_ok=True)
         with urlopen(base + relative, timeout=30) as response:
