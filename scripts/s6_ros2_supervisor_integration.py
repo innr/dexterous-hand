@@ -28,6 +28,7 @@ def main():
     from std_srvs.srv import SetBool
     from rosgraph_msgs.msg import Clock as ClockMsg
     from sensor_msgs.msg import JointState
+    from leap_interfaces.msg import JointCommand
 
     rclpy.init()
 
@@ -39,6 +40,7 @@ def main():
             self.epoch = None
             self.clock_us = None
             self.joint_motion = 0.0
+            self.command_count = 0
             qos = QoSProfile(depth=1, reliability=ReliabilityPolicy.RELIABLE,
                              durability=DurabilityPolicy.TRANSIENT_LOCAL)
             clock_qos = QoSProfile(depth=10, reliability=ReliabilityPolicy.BEST_EFFORT)
@@ -48,6 +50,8 @@ def main():
             self.create_subscription(UInt64, "/leap/sim_epoch", self.on_epoch, qos)
             self.create_subscription(ClockMsg, "/clock", self.on_clock, clock_qos)
             self.create_subscription(JointState, "/joint_states", self.on_joint, 10)
+            self.create_subscription(JointCommand, "/leap/joint_command",
+                                     self.on_command, 10)
             self.pause_client = self.create_client(SetBool, "/leap/supervisor_pause")
 
         def on_supervisor(self, msg):
@@ -61,6 +65,9 @@ def main():
 
         def on_clock(self, msg):
             self.clock_us = msg.clock.sec * 1_000_000 + msg.clock.nanosec // 1000
+
+        def on_command(self, _msg):
+            self.command_count += 1
 
         def on_joint(self, msg):
             if len(msg.position) == 16:
@@ -99,7 +106,8 @@ def main():
             [sys.executable, "-m", "scripts.s6_ros2_supervisor",
              "--bridge", str(args.bridge.resolve()),
              "--pid-file", str(pid_path.resolve())],
-            stdout=log, stderr=subprocess.STDOUT)
+            stdout=log, stderr=subprocess.STDOUT,
+            start_new_session=True)
         processes.append(proc)
         wait(lambda: pid_path.exists(), "supervisor PID file")
         pids = json.loads(pid_path.read_text(encoding="utf-8"))
@@ -123,12 +131,19 @@ def main():
             return False
 
     def stop_supervisor(proc):
+        # Also clean orphaned children after the supervisor itself is SIGKILLed.
+        try:
+            os.killpg(proc.pid, signal.SIGTERM)
+        except ProcessLookupError:
+            pass
         if proc.poll() is None:
-            proc.terminate()
             try:
                 proc.wait(timeout=5)
             except subprocess.TimeoutExpired:
-                proc.kill()
+                try:
+                    os.killpg(proc.pid, signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
                 proc.wait(timeout=5)
 
     try:
@@ -164,8 +179,27 @@ def main():
              "controller must terminate after simulator death", 3.0)
         assert not pid_alive(pids2["simulator"]), "simulator restarted automatically"
         assert proc2.poll() is None, "external supervisor died with simulator"
+        stop_supervisor(proc2)
+
+        proc3, pids3 = start_supervisor("supervisor_exit")
+        assert observer.command_count > 0, "controller did not publish"
+        os.kill(proc3.pid, signal.SIGKILL)
+        proc3.wait(timeout=3)
+        wait(lambda: observer.sim_status == "SAFE_STOP",
+             "simulator watchdog after external supervisor SIGKILL", 3.0)
+        # The controller also has its own lease: no more command publication.
+        for _ in range(12):
+            rclpy.spin_once(observer, timeout_sec=0.025)
+        after_expiry = observer.command_count
+        for _ in range(16):
+            rclpy.spin_once(observer, timeout_sec=0.025)
+        assert observer.command_count == after_expiry, (
+            "controller continued publishing after supervisor death")
+        assert pid_alive(pids3["simulator"]), "simulator watchdog did not stay alive"
+        stop_supervisor(proc3)
         print("PASS S6-04: lifecycle configure/activate, pause/resume epoch, "
               "controller SIGKILL -> SAFE_STOP, simulator SIGKILL -> controller killed, "
+              "supervisor SIGKILL -> lease SAFE_STOP + controller inhibited, "
               "no automatic restart", flush=True)
     finally:
         for proc in processes:
