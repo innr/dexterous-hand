@@ -1,8 +1,6 @@
-"""Optional ROS2 rclpy adapter for S6-02. Run only inside a sourced ROS2 environment.
+"""S6-03 ROS2 Jazzy node with dedicated leap_interfaces/JointCommand.
 
-ROS command: /leap/joint_command sensor_msgs/JointState, names = official MJCF
-joint names, position in rad, header.stamp = /clock time, frame_id = sim_epoch:N.
-The epoch token is a simulation-specific convention, not a TF frame.
+Simulation only; no serial/physical actuator access.
 """
 from __future__ import annotations
 
@@ -11,6 +9,7 @@ from pathlib import Path
 
 from .fetch_leap_menagerie import DEST
 from .s6_official_bridge import OfficialPlant, SimSession
+from .s6_command_contract import JointCommandData
 
 
 def main() -> None:
@@ -30,6 +29,7 @@ def main() -> None:
     from std_msgs.msg import String, UInt64
     from std_srvs.srv import SetBool, Trigger
     from builtin_interfaces.msg import Time
+    from leap_interfaces.msg import JointCommand
 
     def stamp_from_us(micros: int) -> Time:
         result = Time()
@@ -54,7 +54,7 @@ def main() -> None:
             self.state_pub = self.create_publisher(JointState, "/joint_states", 10)
             self.status_pub = self.create_publisher(String, "/leap/sim_status", 10)
             self.epoch_pub = self.create_publisher(UInt64, "/leap/sim_epoch", epoch_qos)
-            self.create_subscription(JointState, "/leap/joint_command", self.on_command, 10)
+            self.create_subscription(JointCommand, "/leap/joint_command", self.on_command, 10)
             self.create_service(SetBool, "/leap/sim_pause", self.on_pause)
             self.create_service(Trigger, "/leap/sim_reset", self.on_reset)
             self.create_service(Trigger, "/leap/sim_stop", self.on_stop)
@@ -77,14 +77,14 @@ def main() -> None:
             self.status_pub.publish(String(data=self.session.state))
             self.epoch_pub.publish(UInt64(data=self.session.epoch))
 
-        def on_command(self, msg: JointState) -> None:
+        def on_command(self, msg: JointCommand) -> None:
             try:
-                token = f"sim_epoch:{self.session.epoch}"
-                if msg.header.frame_id != token:
-                    raise ValueError(f"epoch mismatch: expected {token}")
-                self.session.set_target(
-                    list(msg.name), list(msg.position), epoch=self.session.epoch,
-                    stamp_us=micros_from_stamp(msg.header.stamp))
+                self.session.accept_command(JointCommandData(
+                    stamp_us=micros_from_stamp(msg.stamp),
+                    epoch=int(msg.epoch),
+                    sequence=int(msg.sequence),
+                    names=tuple(msg.joint_names),
+                    positions=tuple(msg.position)))
             except (ValueError, TypeError) as exc:
                 # Reject bad command without moving. Existing authorized target
                 # will expire by simulation-time TTL if not refreshed.

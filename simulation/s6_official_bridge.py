@@ -9,6 +9,9 @@ import json
 import math
 from pathlib import Path
 from typing import Callable
+import time
+
+from .s6_command_contract import JointCommandData, validate_command
 
 from .fetch_leap_menagerie import DEST
 from .s6_mujoco_bridge import CONTROL_DT, ControlBridgeProcess, PROJECT_ROOT
@@ -113,6 +116,9 @@ class SimSession:
         self.target: list[float] | None = None
         self.target_stamp_us: int | None = None
         self.last_command: list[float] | None = None
+        self.last_sequence = -1
+        self.last_receipt_steady: float | None = None
+        self.wall_timeout_s = 0.35
 
     def set_target(self, names: list[str], positions: list[float],
                    *, epoch: int, stamp_us: int) -> None:
@@ -134,13 +140,36 @@ class SimSession:
             raise ValueError("command exceeds official model and C++ intersection limits")
         self.target = target
         self.target_stamp_us = stamp_us
+        self.last_receipt_steady = time.monotonic()
+
+    def accept_command(self, command: JointCommandData) -> None:
+        if self.state not in ("READY", "NORMAL"):
+            raise ValueError(f"commands forbidden in state {self.state}")
+        ordered = validate_command(
+            command, names=self.plant.names, lower=self.plant.lower,
+            upper=self.plant.upper, epoch=self.epoch,
+            last_sequence=self.last_sequence, sim_time_us=self.plant.time_us)
+        self.target = ordered
+        self.target_stamp_us = command.stamp_us
+        self.last_sequence = command.sequence
+        self.last_receipt_steady = time.monotonic()
+
+    def check_wall_watchdog(self) -> None:
+        """Steady-clock guard: publisher crash must not depend only on /clock."""
+        if self.state == "NORMAL" and self.target is not None and (
+                self.last_receipt_steady is None or
+                time.monotonic() - self.last_receipt_steady > self.wall_timeout_s):
+            self.stop()
+            raise RuntimeError("publisher steady-clock watchdog expired")
 
     def tick(self) -> None:
         if self.state in ("PAUSED", "SAFE_STOP", "FAULT"):
             return
         try:
+            self.check_wall_watchdog()
             if self.target is None:
-                self.plant.hold_and_advance()
+                # READY is disarmed: no physics step and no stale position hold.
+                # Prevent uncommanded Menagerie gravity/contact drift at startup.
                 return
             if self.target_stamp_us is None or (self.plant.time_us - self.target_stamp_us > COMMAND_TTL_US):
                 raise RuntimeError("ROS joint command TTL expired")
@@ -160,12 +189,16 @@ class SimSession:
         if enabled:
             self.target = None
             self.target_stamp_us = None
+            self.last_receipt_steady = None
             self.bridge.close()  # Freeze old trajectory state; no queued commands survive resume.
             self.state = "PAUSED"
         elif self.state == "PAUSED":
             # Resume does not replay commands queued before pause.
             self.target = None
             self.target_stamp_us = None
+            self.last_sequence = -1
+            self.last_receipt_steady = None
+            self.epoch += 1  # PAUSE barrier: queued pre-pause DDS commands cannot revive.
             try:
                 self.bridge = self.bridge_factory(self.bridge_executable)
                 self.state = "READY"
@@ -177,6 +210,7 @@ class SimSession:
         self.state = "SAFE_STOP"
         self.target = None
         self.target_stamp_us = None
+        self.last_receipt_steady = None
         self.last_command = None
         self.bridge.close()
 
@@ -187,6 +221,8 @@ class SimSession:
         self.epoch += 1
         self.target = None
         self.target_stamp_us = None
+        self.last_sequence = -1
+        self.last_receipt_steady = None
         self.last_command = None
         self.state = "READY"
         try:

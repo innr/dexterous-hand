@@ -56,10 +56,11 @@ def main(executable: Path) -> None:
         rejects(lambda: session.set_target(names, [0.1] * 16,
                                            epoch=0, stamp_us=plant.time_us))
         session.pause(False)
+        assert session.epoch == 1  # resume barrier invalidates pre-pause DDS messages
         assert session.state == "READY" and session.target is None
-        session.tick()  # no old command replay; plant may advance holding pose
-        assert plant.time_us == frozen_time + 10_000
-        session.set_target(names, [0.1] * 16, epoch=0, stamp_us=plant.time_us)
+        session.tick()  # READY remains disarmed until new authorization
+        assert plant.time_us == frozen_time
+        session.set_target(names, [0.1] * 16, epoch=1, stamp_us=plant.time_us)
         session.tick()
         assert session.state == "NORMAL"
         # Sim-time TTL: no fresh commands for >100ms must stop and latch.
@@ -71,11 +72,11 @@ def main(executable: Path) -> None:
         rejects(lambda: session.set_target(names, [0.1] * 16,
                                            epoch=0, stamp_us=plant.time_us))
         session.reset()
-        assert session.epoch == 1 and session.state == "READY"
+        assert session.epoch == 2 and session.state == "READY"
         assert plant.time_us == 0 and session.target is None
         rejects(lambda: session.set_target(names, [0.1] * 16,
                                            epoch=0, stamp_us=0))
-        session.set_target(names, [0.1] * 16, epoch=1, stamp_us=0)
+        session.set_target(names, [0.1] * 16, epoch=2, stamp_us=0)
         session.tick()
         assert session.state == "NORMAL"
         session.stop()
