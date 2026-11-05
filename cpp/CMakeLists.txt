@@ -18,6 +18,7 @@ add_library(robot_core STATIC
     src/control/TrajectoryMath.cpp
     src/control/AccelerationLimiter.cpp
     src/control/JointTrajectoryPlanner.cpp
+    src/control/MotionControlCore.cpp
     src/safety/SafetyStateMachine.cpp
     src/safety/StopCoordinator.cpp
     src/safety/FeedbackSafetyMonitor.cpp

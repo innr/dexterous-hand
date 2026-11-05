@@ -24,10 +24,14 @@ ControlLoop::ControlLoop(FeedbackBuffer& feedback, CommandMailbox& mailbox, Stop
                          std::chrono::milliseconds max_feedback_age)
     : feedback_(feedback), mailbox_(mailbox), stop_(stop), estimator_(max_feedback_age) {}
 void ControlLoop::clearPendingCommands() { mailbox_.clear(); }
+void ControlLoop::enableMotionControl(MotionControlConfig config) {
+    motion_=std::make_unique<MotionControlCore>(config);
+}
 void ControlLoop::setTargets(const std::array<float, kServoCount>& targets) {
     for (float target : targets) if (!std::isfinite(target)) throw std::invalid_argument("invalid target");
     std::lock_guard<std::mutex> lock(targets_mutex_);
     targets_ = targets;
+    targets_set_ = true;
 }
 bool ControlLoop::tick(ServoClock::time_point now) {
     if (!stop_.commandsAllowed()) return false;
@@ -37,11 +41,26 @@ bool ControlLoop::tick(ServoClock::time_point now) {
     std::array<float, kServoCount> targets;
     {
         std::lock_guard<std::mutex> lock(targets_mutex_);
+        if (motion_ && !targets_set_) return false; // 未授权目标时不得自行回零。
         targets = targets_;
     }
     ServoCommand command;
-    for (std::size_t i = 0; i < kServoCount; ++i)
-        command.position[i] = std::clamp(targets[i], -90.0f, 90.0f);
+    if (motion_) {
+        std::array<float,kServoCount> measured_velocity{};
+        const auto snapshot=feedback_.read();
+        for (std::size_t i=0;i<kServoCount;++i) measured_velocity[i]=snapshot.velocity[i];
+        if (!motion_->step(targets,state.position,measured_velocity,now,last_motion_step_)) {
+            // 控制状态不可用（例如超长控制周期或越界），故障锁存优先于下发。
+            stop_.requestStop();
+            mailbox_.clear();
+            return false;
+        }
+        command.position=last_motion_step_.command_deg;
+    } else {
+        // S4 单独测试和历史调用保留目标位置直通。
+        for (std::size_t i=0;i<kServoCount;++i)
+            command.position[i]=std::clamp(targets[i],-90.0f,90.0f);
+    }
     command.sequence = ++sequence_;
     command.generation = stop_.generation();
     command.created_at = now;
