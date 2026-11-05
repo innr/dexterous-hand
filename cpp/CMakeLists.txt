@@ -113,3 +113,12 @@ add_test(NAME S5VirtualTuningCliTest COMMAND s5_virtual_tuning "${S5_TUNING_CSV}
 set_tests_properties(S5VirtualTuningCliTest PROPERTIES FIXTURES_SETUP S5_TUNING_CSV_READY)
 add_test(NAME S5ResponseAnalyzerCliTest COMMAND s5_response_analyzer "${S5_TUNING_CSV}")
 set_tests_properties(S5ResponseAnalyzerCliTest PROPERTIES FIXTURES_REQUIRED S5_TUNING_CSV_READY)
+
+# S5-09：非阻塞100Hz环形遥测，虚拟总线CSV端到端。
+add_executable(test_s5_telemetry tests/test_s5_telemetry.cpp)
+target_link_libraries(test_s5_telemetry PRIVATE robot_core)
+add_test(NAME S5TelemetryTest COMMAND test_s5_telemetry)
+add_executable(s5_telemetry_demo examples/s5_telemetry_demo.cpp)
+target_link_libraries(s5_telemetry_demo PRIVATE robot_core)
+set(S5_TELEMETRY_CSV "${CMAKE_CURRENT_BINARY_DIR}/s5_telemetry.csv")
+add_test(NAME S5TelemetryDemoTest COMMAND s5_telemetry_demo "${S5_TELEMETRY_CSV}")
