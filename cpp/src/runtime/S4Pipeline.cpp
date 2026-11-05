@@ -78,22 +78,32 @@ std::size_t CommunicationWorker::processCommands(ServoClock::time_point now) {
     }
     return sent;
 }
-void CommunicationWorker::pollFeedbackRealTime() {
-    auto data = feedback_.read();
-    for (std::size_t i = 0; i < kServoCount; ++i) {
+PollBatchResult CommunicationWorker::pollFeedbackSliceRealTime(std::size_t max_joints) {
+    if (max_joints == 0 || max_joints > kServoCount)
+        throw std::invalid_argument("feedback batch must be in [1,16]");
+    PollBatchResult result;
+    for (std::size_t n = 0; n < max_joints; ++n) {
+        const auto joint = next_joint_;
         float p = 0.0f, v = 0.0f;
-        const bool read_ok = bus_.read(i, p, v);
-        const auto sampled_at = ServoClock::now();
-        if (read_ok && std::isfinite(p) && std::isfinite(v)) {
-            data.position[i] = p;
-            data.velocity[i] = v;
-            data.timestamp[i] = sampled_at; // 不能用整轮轮询开始时刻代替逐路时刻。
-            data.valid[i] = true;
-        } else {
-            data.valid[i] = false;
+        bool read_ok = false;
+        try {
+            read_ok = bus_.read(joint, p, v);
+        } catch (...) {
+            // 诊断时保留其他关节的数据；单路异常不能伪装为有效反馈。
+            read_ok = false;
         }
+        const auto sampled_at = ServoClock::now();
+        feedback_.updateJoint(joint, p, v, sampled_at,
+                              read_ok && std::isfinite(p) && std::isfinite(v));
+        ++result.attempted;
+        next_joint_ = (next_joint_ + 1) % kServoCount;
+        if (next_joint_ == 0) result.completed_round = true;
     }
-    feedback_.publish(data);
+    return result;
+}
+void CommunicationWorker::pollFeedbackRealTime() {
+    // 兼容旧接口：仍轮询完整 16 路，但每路完成后立即发布。
+    (void)pollFeedbackSliceRealTime(kServoCount);
 }
 
 void CommunicationWorker::pollFeedback(ServoClock::time_point now) {

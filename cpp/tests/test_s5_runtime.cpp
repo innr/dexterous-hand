@@ -58,6 +58,8 @@ int main() {
     const auto before_stop = executor.stats();
     assert(before_stop.control_ticks >= 10);
     assert(before_stop.communication_polls >= 2);
+    assert(before_stop.feedback_batches >= before_stop.communication_polls * 4);
+    assert(before_stop.feedback_reads == before_stop.feedback_batches * config.feedback_batch_size);
     assert(before_stop.control_ticks > before_stop.communication_polls * 2);
     assert(before_stop.max_start_lateness_us >= 0);
     assert(before_stop.max_control_duration_us >= 0);
@@ -86,5 +88,13 @@ int main() {
     try {
         RealtimeExecutor bad(control, communication, feedback, stop, {milliseconds(0), milliseconds(1)});
     } catch (const std::invalid_argument&) { invalid = true; }
+    assert(invalid);
+
+    invalid=false;
+    RealtimeExecutor::Config bad_batch;
+    bad_batch.feedback_batch_size=0;
+    try {
+        RealtimeExecutor bad(control,communication,feedback,stop,bad_batch);
+    } catch (const std::invalid_argument&) { invalid=true; }
     assert(invalid);
 }

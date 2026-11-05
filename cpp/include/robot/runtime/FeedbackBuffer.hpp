@@ -19,6 +19,10 @@ struct FeedbackSnapshot {
 class FeedbackBuffer {
 public:
     void publish(const FeedbackSnapshot& value);
+    // 每路反馈完成即更新：与 read() 共用互斥锁，读者始终看到一致快照。
+    // 读取失败仅使该路 valid=false，保留上次成功值与时间戳用于诊断。
+    bool updateJoint(std::size_t joint, float position, float velocity,
+                     ServoClock::time_point sampled_at, bool valid);
     FeedbackSnapshot read() const;
 private:
     mutable std::mutex mutex_;

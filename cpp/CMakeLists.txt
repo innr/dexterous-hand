@@ -77,3 +77,8 @@ add_test(NAME S5ReadOnlyBenchTest COMMAND test_s5_bench)
 
 add_executable(sts3215_bench examples/sts3215_bench.cpp)
 target_link_libraries(sts3215_bench PRIVATE robot_core)
+
+# S5-05：分片轮询、逐路发布、故障隔离与轮转公平性。
+add_executable(test_s5_feedback_slicing tests/test_s5_feedback_slicing.cpp)
+target_link_libraries(test_s5_feedback_slicing PRIVATE robot_core)
+add_test(NAME S5FeedbackSlicingTest COMMAND test_s5_feedback_slicing)
