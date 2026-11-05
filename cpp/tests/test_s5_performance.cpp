@@ -66,6 +66,19 @@ int main() {
                 repeated.metrics.rms_reference_error_deg,1e-12));
     assert(std::isfinite(baseline.score));
     assert(baseline.metrics.max_feedback_age_ms>0);
+    VirtualPlantConfig delayed;
+    delayed.command_delay_ticks=5;
+    delayed.feedback_delay_ticks=5;
+    const auto high_delay=simulateTuningCandidate({1.0f,0.05f},delayed);
+    assert(high_delay.metrics.max_feedback_age_ms>
+           baseline.metrics.max_feedback_age_ms);
+    assert(!near(high_delay.metrics.rms_target_error_deg,
+                 baseline.metrics.rms_target_error_deg));
+    VirtualPlantConfig no_command_delay;
+    no_command_delay.command_delay_ticks=0;
+    const auto no_delay=simulateTuningCandidate({1.0f,0.05f},no_command_delay);
+    assert(no_delay.trace.size()==baseline.trace.size());
+
     const auto ranked=rankVirtualCandidates({
         {0.3f,0.0f},{1.0f,0.05f},{1.5f,0.15f}});
     assert(ranked.size()==3);

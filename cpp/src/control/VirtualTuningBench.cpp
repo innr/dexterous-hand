@@ -33,8 +33,8 @@ TuningResult simulateTuningCandidate(TuningCandidate candidate,VirtualPlantConfi
     MotionControlCore control(control_cfg); // 增益合法性由原控制器校验。
     std::array<float,kServoCount> target{},measured{},velocity{};
     target.fill(static_cast<float>(plant.step_deg));
-    std::deque<double> commands(plant.command_delay_ticks+1,0.0);
-    std::deque<double> history(plant.feedback_delay_ticks+1,0.0);
+    std::deque<double> commands(plant.command_delay_ticks,0.0);
+    std::deque<double> history(std::max<std::size_t>(1,plant.feedback_delay_ticks),0.0);
     double actual=0.0,prev_measured=0.0;
     TuningResult result;
     result.candidate=candidate;
@@ -42,7 +42,7 @@ TuningResult simulateTuningCandidate(TuningCandidate candidate,VirtualPlantConfi
     result.trace.reserve(count+1);
     // t=0 表示施加目标前的反馈，便于计算上升时间。
     result.trace.push_back({0.0,plant.step_deg,0.0,0.0,0.0,
-                            plant.feedback_delay_ticks*plant.period_s*1000.0});
+                            std::max<std::size_t>(1,plant.feedback_delay_ticks)*plant.period_s*1000.0});
     const ServoClock::time_point epoch{};
     for (std::size_t n=1;n<=count;++n) {
         const double measured_position=history.front();
