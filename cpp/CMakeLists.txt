@@ -131,3 +131,8 @@ if(Python3_Interpreter_FOUND)
                      --output "${CMAKE_CURRENT_BINARY_DIR}/s5_telemetry.html")
     set_tests_properties(S5TelemetryPlotTest PROPERTIES FIXTURES_REQUIRED S5_TELEMETRY_CSV_READY)
 endif()
+
+# S5 遗留：整批 TX 中途过期后，逐关节 TTL 截断。
+add_executable(test_s5_command_ttl tests/test_s5_command_ttl.cpp)
+target_link_libraries(test_s5_command_ttl PRIVATE robot_core)
+add_test(NAME S5CommandTtlTest COMMAND test_s5_command_ttl)
