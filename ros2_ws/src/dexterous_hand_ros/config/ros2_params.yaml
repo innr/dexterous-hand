@@ -1,0 +1,7 @@
+/**:
+  ros__parameters:
+    backend: virtual
+    publish_rate_hz: 50.0
+    command_timeout_s: 0.25
+    timeout_action: disable_torque
+    allow_uncalibrated: false
