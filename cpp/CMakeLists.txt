@@ -32,6 +32,7 @@ add_library(robot_core STATIC
     src/runtime/RealtimeExecutor.cpp
     src/runtime/ReadOnlyBench.cpp
     src/runtime/ControlTelemetry.cpp
+    src/mapping/JointTable.cpp
 )
 target_include_directories(robot_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 target_link_libraries(robot_core PUBLIC Threads::Threads)
@@ -137,6 +138,40 @@ add_executable(test_s5_command_ttl tests/test_s5_command_ttl.cpp)
 target_link_libraries(test_s5_command_ttl PRIVATE robot_core)
 add_test(NAME S5CommandTtlTest COMMAND test_s5_command_ttl)
 
+# S7-00 PR-2：canonical 布局与 header-inline reorder；不链接 mapping / 控制环。
+add_executable(test_s7_canonical tests/test_s7_canonical.cpp)
+target_link_libraries(test_s7_canonical PRIVATE robot_core)
+if(MSVC)
+    target_compile_options(test_s7_canonical PRIVATE /W4 /utf-8)
+else()
+    target_compile_options(test_s7_canonical PRIVATE -Wall -Wextra -Wpedantic -Werror)
+endif()
+add_test(NAME S7CanonicalLayoutTest COMMAND test_s7_canonical)
+
+set(_leap_root "${CMAKE_CURRENT_SOURCE_DIR}/..")
+set(_leap_env "LEAP_JOINT_MAPPING=${_leap_root}/config/joint_mapping.json;LEAP_PROJECT_ROOT=${_leap_root}")
+
+add_executable(test_s7_joint_table tests/test_s7_joint_table.cpp)
+target_link_libraries(test_s7_joint_table PRIVATE robot_core)
+if(MSVC)
+    target_compile_options(test_s7_joint_table PRIVATE /W4 /utf-8)
+else()
+    target_compile_options(test_s7_joint_table PRIVATE -Wall -Wextra -Wpedantic -Werror)
+endif()
+add_test(NAME S7JointTableLoadTest COMMAND test_s7_joint_table)
+set_tests_properties(S7JointTableLoadTest PROPERTIES ENVIRONMENT "${_leap_env}")
+
+add_executable(test_s7_sts3215_golden tests/test_s7_sts3215_golden.cpp)
+target_link_libraries(test_s7_sts3215_golden PRIVATE robot_core)
+if(MSVC)
+    target_compile_options(test_s7_sts3215_golden PRIVATE /W4 /utf-8)
+else()
+    target_compile_options(test_s7_sts3215_golden PRIVATE -Wall -Wextra -Wpedantic -Werror)
+endif()
+add_test(NAME S7Sts3215GoldenTest
+         COMMAND test_s7_sts3215_golden
+                 "${CMAKE_CURRENT_SOURCE_DIR}/../tests/golden/sts3215_packets.json")
+
 # S6-01：16 路 MuJoCo 与现有 C++17 控制核心的进程协议适配。
 add_executable(s6_control_bridge examples/s6_control_bridge.cpp)
 target_link_libraries(s6_control_bridge PRIVATE robot_core)
@@ -145,6 +180,7 @@ if(Python3_Interpreter_FOUND)
              COMMAND "${Python3_EXECUTABLE}"
                      "${CMAKE_CURRENT_SOURCE_DIR}/../tests/test_s6_bridge_protocol.py"
                      "$<TARGET_FILE:s6_control_bridge>")
+    set_tests_properties(S6BridgeProtocolTest PROPERTIES ENVIRONMENT "${_leap_env}")
     execute_process(COMMAND "${Python3_EXECUTABLE}" -c "import mujoco, numpy"
                     RESULT_VARIABLE S6_MUJOCO_IMPORT_RESULT
                     OUTPUT_QUIET ERROR_QUIET)
@@ -154,7 +190,8 @@ if(Python3_Interpreter_FOUND)
                          --bridge "$<TARGET_FILE:s6_control_bridge>"
                          --seconds 0.6 --assert-motion)
         set_tests_properties(S6MuJoCoSmokeTest PROPERTIES
-            WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/..")
+            WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/.."
+            ENVIRONMENT "${_leap_env}")
     endif()
 endif()
 
@@ -166,6 +203,7 @@ if(Python3_Interpreter_FOUND AND S6_MUJOCO_IMPORT_RESULT EQUAL 0)
                          "${CMAKE_CURRENT_SOURCE_DIR}/../tests/test_s6_official_bridge.py"
                          "$<TARGET_FILE:s6_control_bridge>")
         set_tests_properties(S6OfficialModelTest PROPERTIES
-            WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/..")
+            WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/.."
+            ENVIRONMENT "${_leap_env}")
     endif()
 endif()

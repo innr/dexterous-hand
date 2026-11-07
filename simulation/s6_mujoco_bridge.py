@@ -7,6 +7,7 @@ from __future__ import annotations
 import argparse
 import json
 import math
+import os
 from pathlib import Path
 import subprocess
 from xml.etree import ElementTree as ET
@@ -60,11 +61,20 @@ def make_surrogate_xml(joint_names: list[str]) -> str:
     return ET.tostring(root, encoding="unicode")
 
 
+def bridge_env() -> dict[str, str]:
+    env = os.environ.copy()
+    if "LEAP_JOINT_MAPPING" not in env and "LEAP_PROJECT_ROOT" not in env:
+        env["LEAP_PROJECT_ROOT"] = str(PROJECT_ROOT)
+    return env
+
+
 class ControlBridgeProcess:
     def __init__(self, executable: Path):
+        # JSON limits from joint_mapping.json apply to this surrogate too.
+        # Keep side-joint targets at 0 so measured pose stays inside limit_rad.
         self.process = subprocess.Popen(
             [str(executable)], stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE, text=True, bufsize=1,
+            stderr=subprocess.PIPE, text=True, bufsize=1, env=bridge_env(),
         )
         assert self.process.stdout is not None
         ready = self.process.stdout.readline().strip()

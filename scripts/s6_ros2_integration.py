@@ -30,9 +30,9 @@ def main() -> None:
     from std_msgs.msg import String, UInt64
     from std_srvs.srv import SetBool, Trigger
     from leap_interfaces.msg import JointCommand
-    from simulation.s6_official_bridge import load_contract
+    from simulation.canonical import CANONICAL_NAMES
 
-    names = [x["mujoco_joint"] for x in load_contract()]
+    names = list(CANONICAL_NAMES)
     deadline = time.monotonic() + args.timeout
     log_path = Path("build/s6_ros2_simulator.log")
     log_path.parent.mkdir(parents=True, exist_ok=True)
@@ -52,6 +52,7 @@ def main() -> None:
             self.states = []
             self.status = None
             self.epoch = None
+            self.session_id = None
             self.statuses = []
             self.pub = self.create_publisher(JointCommand, "/leap/joint_command", 10)
             clock_qos = QoSProfile(depth=10, reliability=ReliabilityPolicy.BEST_EFFORT)
@@ -61,6 +62,7 @@ def main() -> None:
             qos = QoSProfile(depth=1, reliability=ReliabilityPolicy.RELIABLE,
                              durability=DurabilityPolicy.TRANSIENT_LOCAL)
             self.create_subscription(UInt64, "/leap/sim_epoch", self.on_epoch, qos)
+            self.create_subscription(UInt64, "/leap/sim_session", self.on_session, qos)
             self.pause_client = self.create_client(SetBool, "/leap/sim_pause")
             self.reset_client = self.create_client(Trigger, "/leap/sim_reset")
 
@@ -80,6 +82,9 @@ def main() -> None:
 
         def on_epoch(self, msg):
             self.epoch = int(msg.data)
+
+        def on_session(self, msg):
+            self.session_id = int(msg.data)
 
     obs = Observer()
 
@@ -119,6 +124,7 @@ def main() -> None:
         cmd = JointCommand()
         cmd.stamp.sec = stamp_us // 1_000_000
         cmd.stamp.nanosec = (stamp_us % 1_000_000) * 1000
+        cmd.session_id = int(obs.session_id or 0)
         cmd.epoch = epoch
         cmd.sequence = sequence
         cmd.joint_names = names
@@ -126,7 +132,8 @@ def main() -> None:
         obs.pub.publish(cmd)
 
     try:
-        spin_until(lambda: obs.epoch is not None and len(obs.clocks) > 4 and
+        spin_until(lambda: obs.epoch is not None and obs.session_id not in (None, 0) and
+                   len(obs.clocks) > 4 and
                    len(obs.states) > 4, what="DDS clock/joint_states")
         assert len(obs.states[-1][1]) == 16 and set(obs.states[-1][1]) == set(names)
         # Sim-time clock and joint-state stamps must be sourced from same plant.

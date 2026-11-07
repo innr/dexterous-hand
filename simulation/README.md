@@ -91,11 +91,12 @@ ros2 service call /leap/sim_pause std_srvs/srv/SetBool "{data: false}"
 ros2 service call /leap/sim_reset std_srvs/srv/Trigger "{}"
 ```
 
-控制输入：`/leap/joint_command` (`sensor_msgs/JointState`)，
-16 个官方 MJCF 名称（见 `config/menagerie_right_mapping.json`），
-`position` 单位 rad，`header.stamp` 使用当前 `/clock`，
-`header.frame_id` 必须是 `sim_epoch:<N>`（**临时仿真协议**，不是 TF 坐标系）。
+控制输入：`/leap/joint_command`（`leap_interfaces/msg/JointCommand`），
+16 个 canonical 名（`index_mcp_side` … `thumb_ip`，见 `config/joint_mapping.json`），
+另含 `session_id`（进程 boot nonce，0 非法）、`epoch`、`sequence`。
+`position` 单位 rad，`stamp` 使用当前 `/clock`。
+**不要**再用 `sensor_msgs/JointState` 或 `header.frame_id="sim_epoch:<N>"`（那是 S6-02 已取代的临时协议）。
 控制方至少每 100ms 仿真时间刷新一次，否则进入锁存 SAFE_STOP。
 暂停冻结仿真时间并清除目标；恢复后需新命令。
 重置将 epoch 加一，旧 epoch 命令不再接受。详情见
-`docs/designs/s6_02_official_leap_ros2.md`。
+`docs/designs/s6_03_ros2_dds.md` 与 `docs/designs/s7_00_contract_convergence.md`。

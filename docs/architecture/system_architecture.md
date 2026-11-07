@@ -1,225 +1,179 @@
 # Dexterous Hand System Architecture
 
+本文是 **S1–S6 已实现基线** 与 **S7 之前契约** 的权威系统图。  
+冻结合同：`docs/designs/s7_00_contract_convergence.md`（Frozen，2026-11-07）。  
+更早的 Python-first / Design 001–008 / PR #1 merge gate 叙述已过期，见文末 Historical。
+
 ## 1. Purpose
 
-This document is the project-level architecture baseline for the LEAP-style 16-DOF dexterous hand stack. It separates what exists on `main`, what is currently in flight, and what the target architecture requires. It also freezes the development workflow used for subsequent software tasks.
+栈负责表示、命令、仿真、观测一台 16-DOF LEAP 兼容灵巧手，并在标定与硬件门禁满足之前 **禁止普通真机运动**。
 
-The migration principle is conservative: existing working code is not rewritten merely to match documentation. Design documents review existing behavior first, retain compatible implementation, and require changes only where a frozen contract or acceptance criterion is not met.
+软件边界包括：
 
-## 2. System scope
+- 官方 Menagerie LEAP 右手 MJCF 仿真（S6）；
+- C++17 S4–S5 运行时（100 Hz 控制 / 通信拆分 / TX 门禁 / STS3215 协议）；
+- 进程外 `s6_control_bridge` 文本协议；
+- ROS2 Jazzy 仿真命令与 lifecycle 监督（仅 Linux CI）；
+- STS3215 只读工具与未使能的 C++ 传输。
 
-The stack is responsible for representing, commanding, simulating, observing, and eventually operating a 16-DOF LEAP Hand-compatible mechanism. The software boundary includes:
+物理标定、E-stop、16 路带载闭环在软件-only 验收之外（H-01 / H-02 / H-03）。S7 运动仍是 **NO-GO**。
 
-- official LEAP model integration and MuJoCo simulation;
-- canonical 16-DOF joint representation;
-- position control and shared safety policy;
-- STS3215 transport, calibration, and hardware backend;
-- future ROS 2 integration;
-- future vision-to-hand retargeting;
-- future recording/replay and LeRobot/HDF5 data paths.
+## 2. Layer labels
 
-Physical commissioning remains outside the software-only acceptance boundary until the required hardware is available.
+文档与新代码必须使用这些标签，不要再发明第三套分层名。
 
-## 3. Current implementation baseline
+| 标签 | 含义 | 权威代码 | 在 S6 路径上？ |
+|---|---|---|---|
+| S1–S3 teaching | 同步教学核心 | `RobotController`, `IBus`, `RobotHand` | 否 |
+| S4–S5 runtime | 异步控制 / 通信 / 安全 / STS 协议 | `S4Pipeline.hpp`, `RealtimeExecutor`, `StopCoordinator`, `Sts3215*` | 是（经桥） |
+| S6 sim adapter | Python 植物 + ROS2 + 文本桥 | `s6_official_bridge.py`, `s6_ros2_node.py`, `s6_control_bridge.cpp` | 是 |
+| S7 hardware | 真实总线；本阶段运动 NO-GO | `sts3215_readonly_probe`, `Sts3215Transport` (`allow_motion=false`) | 否（不得从桥构造） |
 
-### 3.1 On `main`
+`robot/robot_core.hpp` 只聚合 S1–S3 头。新代码包含具体模块头。
 
-The current repository already provides the foundations that new work must reuse:
+## 3. Current system (as built)
 
-- Python package layout with `simulation` and `hardware` packages;
-- pinned official LEAP Hand simulation repository as a submodule;
-- `config/joint_mapping.json` describing the 16 canonical joints, MuJoCo ordering, STS3215 IDs, limits, direction placeholders, and zero-offset placeholders;
-- a dependency-light STS3215 packet/bus driver;
-- serial scan and zero-capture tooling;
-- tests around the existing model/mapping/STS3215 behavior.
+```text
+ROS2 controller (Python, 50 Hz)
+  leap_interfaces/msg/JointCommand
+  rad, epoch, sequence, 16 Menagerie names (until S7-00 PR-4b)
+        |
+LeapSimNode / SimSession     独立 supervisor 租约 / arm
+  READY / NORMAL / PAUSED / SAFE_STOP / FAULT
+        |
+stdin/stdout  s6_control_bridge
+  rad <-> deg   READY 16 S6-01 / STEP / OK / STOP
+        |
+C++ S5 runtime
+  ControlLoop -> MotionControlCore (deg)
+  -> CommandMailbox -> CommunicationWorker
+  -> StopCoordinator::beginSend -> IServoTransport
+        |
+OfficialPlant (Menagerie MJCF) -> 5 x mj_step(2 ms)
+```
 
-The hardware mapping remains intentionally uncalibrated. Direction signs and zero offsets must not be treated as physically verified values.
+同一 STATIC 库 `robot_core` 仍含教学栈（`IBus` / `RobotController`）。S6/S7 运动不得调用 `IBus::send`。
 
-### 3.2 In-flight PR #1
-
-PR #1 (`feat: add actuated LEAP simulation control`) is implementation under review, not part of the `main` baseline. It currently introduces behavior spanning all three P0 design areas:
-
-- temporary conversion/augmentation of the official LEAP URDF into an actuated MuJoCo model;
-- 16 canonical position actuators and PD configuration;
-- target velocity limiting, force limits, joint-limit projection, and simulation home pose;
-- canonical joint-position <-> STS3215 tick conversion;
-- a calibration-gated hardware controller and explicit torque operations;
-- additional simulation and hardware-controller tests.
-
-Because this PR crosses Designs 001, 002, and 003, it must not be approved merely because one of those designs has been reviewed. All affected P0 contracts must be frozen first.
+`hardware/sts3215.py` 是 **tools-only 第二写路径**（扫描、零位采集；默认不使能扭矩）。运动 PR 不得调用它。S4–S5 运行时路径上唯一 `startSend` 线性化点是 `StopCoordinator::beginSend`。
 
 ## 4. Canonical 16-DOF contract
 
-The system uses one canonical joint vector for all application-facing interfaces. A joint position command or state is a vector of 16 radians ordered by canonical LEAP/hardware ID `0..15`.
-
-Backend-specific ordering is an implementation detail. MuJoCo qpos ordering must be translated at the simulation boundary. STS3215 IDs, directions, encoder offsets, and tick conversion must be translated at the hardware boundary. Higher-level modules must not duplicate these reorder/conversion rules.
-
-The mapping configuration is the authoritative metadata source for joint identity and configured limits. Simulation-only defaults such as a MuJoCo home pose must remain explicitly distinct from calibrated physical zero offsets.
-
-## 5. Target architecture
+应用面（ROS2、Python 校验、未来重定向/录制）位置一律 **radian**，canonical 名，顺序 `0..15`：
 
 ```text
-Command Sources
-  CLI / tests / future ROS 2 / future retargeting / replay
-                         |
-                         v
-                Canonical 16-DOF API
-                         |
-                         v
-                  Shared Safety Policy
-             limits / rate / validity / stop
-                         |
-                         v
-                   Backend Interface
-                    /             \
-                   v               v
-          MuJoCo Backend      STS3215 Backend
-          reorder + ctrl      calibration + ticks
-                   |               |
-                   v               v
-              Simulation       Serial bus
-
-Canonical state ---------------------------------> recording / ROS 2
+ 0 index_mcp_side        1 index_mcp_forward     2 index_pip       3 index_dip
+ 4 middle_mcp_side       5 middle_mcp_forward    6 middle_pip      7 middle_dip
+ 8 ring_mcp_side         9 ring_mcp_forward     10 ring_pip       11 ring_dip
+12 thumb_cmc_side       13 thumb_cmc_forward    14 thumb_mcp      15 thumb_ip
 ```
 
-The architecture deliberately keeps command producers independent from simulation and hardware details. A producer should be able to emit the same canonical target regardless of backend.
+名字来源：`config/joint_mapping.json` 的 `joints[].name`。  
+Menagerie MJCF 名（`if_rot` 等）与 STS3215 ID 只在后端适配。当前 ROS2 命令仍发 MJCF 名，直到 S7-00 **PR-4b**。
 
-## 6. Layer responsibilities
+单位边界：
 
-### 6.1 Configuration and joint model
+| 边界 | 单位 |
+|---|---|
+| `CanonicalCommand` / ROS2 命令与 `/joint_states` | rad |
+| `s6_control_bridge` STEP / OK | rad（桥内换成 deg） |
+| `ControlLoop` / `MotionControlCore` / mailbox / `IServoTransport` | deg |
+| `ControlTelemetryFrame` / S5 CSV / S5 CTest | deg |
+| `Sts3215Transport` 寄存器 | tick |
 
-Owns joint names, canonical ordering, limits, backend mapping, calibration metadata, and validated control parameters. Invalid mappings must fail before commands reach a backend.
+S6 路径上 **只有** 桥做 rad↔deg。硬件路径上 **只有** `Sts3215Transport` 做 deg↔tick。不要在 `MotionControlCore` 内部换算。
 
-### 6.2 Shared safety/control contract
+`session_id` 是进程 boot nonce，不是 `epoch`。S6-R01（跨进程命令重放）在 PR-4a 的 unmanaged CI 测试落地前 **仍开放**。
 
-Owns validation of command shape and finite numeric values, joint-limit enforcement, velocity/rate policy, home/stop semantics, and the rules that determine whether motion or torque may be enabled.
+细节与类型布局见 `docs/designs/s7_00_contract_convergence.md`。
 
-Safety rules should be testable without physical hardware. Disabling torque or entering a safe stopped state must remain possible during recovery even when normal motion is rejected.
+## 5. Mapping
 
-### 6.3 MuJoCo backend
+| 文件 | 角色 |
+|---|---|
+| `config/joint_mapping.json` | 身份源：canonical 名、`hardware_id`、`limit_rad`、方向/零位占位、`calibration.status` |
+| `config/menagerie_right_mapping.json` | 仿真适配：canonical → MJCF joint / actuator |
 
-Owns official-model loading/conversion, MuJoCo joint/actuator lookup, canonical <-> simulator ordering, actuator parameterization, and application of validated canonical targets. It must not redefine application-level joint identity.
+两文件暂不合并。`OfficialPlant` 必须两份都加载，按 `canonical == name` 连接（S7-00 PR-3）。
 
-### 6.4 STS3215 backend
+`calibration.status` 现为 `not_calibrated`。未标定 ⇒ 禁止普通运动。本系列不得改写仓库内该字段。
 
-Owns serial protocol details, encoder/tick conversion, servo-ID mapping, calibration transforms, read/write operations, and hardware-specific failure reporting. Hardware motion and torque enable remain calibration-gated unless an explicitly defined bench/test override is used.
+C++ 桥发现顺序（S7-00 PR-3）：`LEAP_JOINT_MAPPING`，否则 `${LEAP_PROJECT_ROOT}/config/joint_mapping.json`。禁止相对可执行文件 / cwd 搜索。Python `ControlBridgeProcess` 在环境为空时注入 `LEAP_PROJECT_ROOT`。
 
-### 6.5 ROS 2 interface (target)
+## 6. Safety vocabulary (do not merge implementations)
 
-Will expose canonical `joint_command` and `joint_states` interfaces. ROS-specific message transport must not own mapping or hardware conversion logic.
+| 词汇 | 所有者 | 权威含义 |
+|---|---|---|
+| `Supervisor.mode` | `scripts/s6_ros2_supervisor.py` | 进程监督；BOOTING / ACTIVE / PAUSED / LATCHED |
+| `LeapSimNode.armed` | `simulation/s6_ros2_node.py` | 是否接受 DDS 命令 |
+| `SimSession.state` | `simulation/s6_official_bridge.py` | 仿真会话；READY / NORMAL / PAUSED / SAFE_STOP / FAULT |
+| `SafetyStateMachine` | 仅 `FeedbackSafetyMonitor` 内部 | 反馈年龄分级 |
+| `StopCoordinator` | C++ 运行时 | **唯一** 是否允许 `startSend` |
 
-### 6.6 Retargeting (target)
-
-Will convert MediaPipe/other hand observations into canonical LEAP 16-DOF targets. Retargeting output must pass through the same safety/control contract as any other command source.
-
-### 6.7 Data pipeline (target)
-
-Will record/replay canonical commands/states plus timestamps and relevant metadata. LeRobot/HDF5 serialization remains downstream of the canonical representation.
+Python `armed` 不是 TX 许可。物理 E-stop / 断扭矩 **不存在**（H-01）；仿真 `SAFE_STOP` 不是硬件卸载。
 
 ## 7. Dependency direction
 
-Dependencies flow downward toward configuration, canonical contracts, and backend primitives. Higher-level applications may depend on lower layers; low-level transport must not depend on ROS 2, MediaPipe, or dataset code.
-
-A desired dependency shape is:
-
 ```text
-applications / ROS2 / retargeting / replay
+applications / ROS2 / (future retargeting / replay)
                  |
                  v
-       canonical control + safety
+       canonical command (rad) + session/epoch/seq
                  |
-          +------+------+
-          |             |
-          v             v
-     simulation      hardware
-          |             |
-          v             v
-       MuJoCo        STS3215
-                 
-configuration / joint mapping is consumed by the relevant lower layers
+                 v
+       S6 adapter (SimSession, OfficialPlant, text bridge)
+                 |
+                 v
+       S4–S5 runtime (deg) + StopCoordinator
+          /                    \
+         v                      v
+   SimulatedServoTransport   Sts3215Transport (motion disabled)
 ```
 
-## 8. Safety and calibration invariants
+低层传输不得依赖 ROS2、MediaPipe 或数据集代码。
 
-The following are architecture-level invariants and require explicit design review before being weakened:
+## 8. Invariants
 
-- uncalibrated hardware must not accept ordinary motion commands;
-- enabling torque must be explicit and subject to calibration policy;
-- torque disable/recovery must remain available even when calibration or command validation fails;
-- safe goal state must be established before torque activation when required by the hardware command design;
-- joint direction must be validated as exactly `-1` or `+1` before calibrated conversion is trusted;
-- non-finite commands/configuration values must be rejected at validation boundaries;
-- simulation home pose is not a substitute for hardware calibration;
-- all application-facing positions use radians in canonical order;
-- backend conversion/reordering must have deterministic tests.
+- 未标定硬件不得接受普通运动命令；`allow_motion` 默认 false。
+- 使能扭矩必须显式，且受标定策略约束。本系列所有调用点 `operator_allow_motion=false`。
+- 应用面位置：canonical 顺序、弧度。
+- 后端换算只发生在声明的边界。
+- CI 绿 ≠ 硬件安全。
+- 不要把 `IBus` 接到 `Sts3215Transport`。不要从 S6 桥构造 `Sts3215Transport`。
 
-Exact behavior is frozen in Designs 001-003 rather than inferred from the current implementation.
+## 9. Platform
 
-## 9. Development workflow
+| 平台 | 范围 |
+|---|---|
+| Windows 开发机 | 文档、`robot_core` 编译、Python 单测；无真实串口；无 ROS2 作为默认环境 |
+| Linux + ROS2 Jazzy | DDS、lifecycle supervisor、S6 integration CI |
+| Linux 串口 | `PosixHalfDuplexPort`（1 Mbps + TEMT）；未在目标适配器上验收 |
+| Windows COM | **不存在** |
 
-Every implementation task follows this lifecycle:
+## 10. Implementation record (current)
 
-```text
-Backlog
-  -> ChatGPT design discussion
-  -> Design Doc (Draft)
-  -> Design review
-  -> Design Doc (Frozen)
-  -> Codex implementation against frozen contract
-  -> automated tests / simulation validation
-  -> one task / one PR
-  -> spec-based review
-  -> merge
-  -> next task
-```
+| 阶段 | 文档 |
+|---|---|
+| S4 | `docs/designs/s4_realtime_control.md` |
+| S5 | `docs/designs/s5_01_safe_send.md` … `s5_09_control_telemetry.md` |
+| S6 | `s6_01`–`s6_04`（`s6_02` 命令面已被 S6-03 取代） |
+| 验收 | `docs/acceptance/s5_stage_acceptance_2026_11_05.md`、`s6_stage_acceptance_2026_11_05.md` |
+| 下一契约 | `docs/designs/s7_00_contract_convergence.md` |
 
-If implementation reveals a material architecture problem, the design returns to Draft/Review before the implementation contract changes. Codex should not silently make major architecture decisions while implementing a frozen design.
+S6 软件/仿真阶段条件通过。S7-01 只读台架可准备。单关节使能与 16 路带载闭环 **NO-GO**，直到 H-01～H-03 与 S6-R01～R03 的硬件对应项关闭。
 
-Each Design Doc must contain:
+## 11. Ordered work after this baseline
 
-- Context / problem;
-- Goals;
-- Non-goals;
-- Current behavior / reuse plan;
-- proposed architecture;
-- public interfaces and data structures;
-- configuration;
-- safety and failure behavior;
-- testing strategy;
-- Acceptance Criteria;
-- alternatives / trade-offs;
-- implementation notes for Codex.
+见 S7-00 PR Plan：**文档（本文件所属）→ Canonical 类型 → JointTable 限位 → session_id → canonical 名 → STS3215 黄金向量**。
 
-## 10. Ordered design backlog
+仍开放、不得假装关闭：S6-R01（至 PR-4a CI）、S6-R02、S6-R03、H-01、H-02、H-03。
 
-The current software backlog is frozen in this order unless a dependency requires adjustment:
+未来、**非本系列**：MediaPipe 重定向、LeRobot/HDF5、物理调试与标定运动（原 backlog 006–008）。
 
-| ID | Priority | Design | Hardware required |
-|---|---|---|---|
-| 001 | P0 | MuJoCo 16-actuator PD control | No |
-| 002 | P0 | Home pose, limits, velocity limits and emergency-stop policy | No |
-| 003 | P0 | MuJoCo joint order <-> STS3215 ID mapping contract/tests | No |
-| 004 | P1 | Virtual STS3215 bus: read/write, timeout, checksum and servo errors | No |
-| 005 | P1 | ROS 2 unified `joint_command` / `joint_states` interface | No |
-| 006 | P2 | MediaPipe -> LEAP 16-DOF retargeting | Camera can be deferred |
-| 007 | P2 | Recording, replay and LeRobot/HDF5 pipeline | No |
-| 008 | P3 | Real serial scan, direction verification, zero calibration and physical motion | Yes |
+## 12. Historical (do not implement against)
 
-Because PR #1 already overlaps 001, 002, and 003, those designs must first document and review the existing implementation instead of blindly generating replacement code.
+以下内容保留为史实，**不是当前 backlog**：
 
-## 11. Architecture decisions frozen by this baseline
-
-- The project uses one canonical 16-DOF joint-space contract.
-- Hardware/official LEAP joint order is the canonical ordering for the current stack.
-- Backend-specific ordering is translated only at backend boundaries.
-- Hardware calibration data is distinct from simulation defaults.
-- Hardware commands remain calibration-gated and torque enable is explicit.
-- Safety is a shared layer/policy, not independently reimplemented by each application.
-- ROS 2, retargeting and recording sit above the canonical control contract.
-- Hardware-independent functionality should have deterministic tests before physical commissioning.
-
-## 12. Immediate next step and PR #1 merge gate
-
-Create and review `docs/designs/001_mujoco_pd_control.md`, `002_safety_limits.md`, and `003_joint_mapping.md` against the behavior already present in PR #1. Each design should explicitly decide which existing behavior is retained, identify gaps, and freeze its Acceptance Criteria.
-
-**PR #1 must not be approved or merged until Designs 001, 002, and 003 are all reviewed and frozen and PR #1 has been checked against all three contracts.** If gaps exist, amend PR #1 and rerun the required tests before approval. Do not start Design 004/005 implementation until this overlapping P0 review is complete.
+- Design 001–005（MuJoCo PD、safety policy、joint mapping、virtual bus、ROS2 interface）已被 S4–S6 + S7-00 取代。
+- Design 006–008（MediaPipe、recording/replay、hardware commissioning）**仍未实现**，也不是 S7-00 系列的任务。
+- PR #1 merge gate（“001/002/003 Frozen 之前不得合入 PR #1”）是早期流程。当前 `main` 已含 S5/S6。不要再把 PR #1 当作 in-flight 基线。
+- 根 `README.md` 的 2026-08-25 硬件 BOM / 遥操作路线图是项目准备文档，不是运行时架构。

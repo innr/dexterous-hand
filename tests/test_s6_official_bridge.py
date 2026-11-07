@@ -27,7 +27,15 @@ def main(executable: Path) -> None:
     plant = OfficialPlant(model_path)
     assert plant.model.njnt == 16 and plant.model.nu == 16
     assert len(plant.names) == 16 and len(set(plant.names)) == 16
+    side = [1.10 if i % 4 == 0 else 0.2 for i in range(16)]
+    rejects(lambda: plant.apply(side))
+    golden = Path(__file__).resolve().parents[1] / "tests" / "golden" / "official_plant_limits_rad.json"
+    if golden.is_file():
+        import json
+        expected = json.loads(golden.read_text(encoding="utf-8"))["limits"]
+        assert [[plant.lower[i], plant.upper[i]] for i in range(16)] == expected
     session = SimSession(plant, executable)
+    session.session_id = 99
     try:
         names = plant.names
         initial_time = plant.time_us

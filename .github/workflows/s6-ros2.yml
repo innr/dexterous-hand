@@ -6,6 +6,7 @@ on:
       - "scripts/s6_ros2_*"
       - "ros2_ws/**"
       - "tests/test_s6_*"
+      - "config/**"
       - "cpp/**"
       - ".github/workflows/s6-ros2.yml"
   push:
@@ -15,6 +16,7 @@ on:
       - "scripts/s6_ros2_*"
       - "ros2_ws/**"
       - "tests/test_s6_*"
+      - "config/**"
       - "cpp/**"
       - ".github/workflows/s6-ros2.yml"
 
@@ -42,5 +44,6 @@ jobs:
             cmake --build build/s6_ros2_cpp --parallel 4
             python3 tests/test_s6_command_contract.py
             python3 scripts/s6_ros2_integration.py --bridge build/s6_ros2_cpp/s6_control_bridge --timeout 45
+            python3 scripts/s6_ros2_session_replay.py --bridge build/s6_ros2_cpp/s6_control_bridge
             python3 scripts/s6_ros2_supervisor_integration.py --bridge build/s6_ros2_cpp/s6_control_bridge
           '

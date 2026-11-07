@@ -1,6 +1,8 @@
 # S6-02 — 官方 LEAP Hand MJCF + ROS2 /clock 与安全会话
 
-状态：Implemented / ROS2 运行时待 ROS2 Jazzy 环境 HIL-less 验收。仅仿真，不访问硬件。
+> **Superseded（命令面）：** `/leap/joint_command` 不再使用 `sensor_msgs/JointState`，也不再用 `header.frame_id="sim_epoch:<N>"`。从 S6-03 起命令是 `leap_interfaces/msg/JointCommand`（`stamp` / `epoch` / `sequence` / 16 名 / 16 位置 rad）。见 `docs/designs/s6_03_ros2_dds.md`。植物、Menagerie 映射与暂停/重置语义仍以本文 + S6-03 为准。契约收敛见 `docs/designs/s7_00_contract_convergence.md`。
+
+状态：Implemented（植物/映射）；命令面已被 S6-03 取代。仅仿真，不访问硬件。
 
 ## Context
 S6-01 的 16DOF surrogate 已与 C++17 S5 核心闭环。S6-02 将仿真 plant 替换为 Google DeepMind MuJoCo Menagerie LEAP right-hand MJCF（上游 MIT），保留现有 `s6_control_bridge` 进程协议和所有 S5 stop gates。

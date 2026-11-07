@@ -1,5 +1,8 @@
 """STS3215 协议编解码与总线读取的单元测试（使用假串口，无需硬件）。"""
 
+import json
+from pathlib import Path
+
 from hardware.sts3215 import (
     Instruction,
     STS3215Bus,
@@ -36,14 +39,26 @@ class FakeSerial:
         pass
 
 
+GOLDEN = json.loads(
+    (Path(__file__).resolve().parents[1] / "tests" / "golden" / "sts3215_packets.json")
+    .read_text(encoding="utf-8"))
+
+
 def test_ping_packet_matches_scs_protocol() -> None:
     """PING 指令的编码应与 SCS 协议一致。"""
-    assert encode_packet(1, Instruction.PING) == bytes.fromhex("ffff010201fb")
+    assert encode_packet(1, Instruction.PING) == bytes.fromhex(GOLDEN["ping_id1"])
+
+
+def test_read_present_position_matches_golden() -> None:
+    serial = FakeSerial(bytes.fromhex("ffff0704003412ae"))
+    bus = STS3215Bus("fake", serial_factory=lambda **kwargs: serial)
+    bus.read_position_ticks(7)
+    assert serial.writes == [bytes.fromhex(GOLDEN["read_id7_present_position"])]
 
 
 def test_decode_status_packet_and_checksum() -> None:
     """状态包应被正确解析，校验和校验通过。"""
-    packet = bytes.fromhex("ffff0104003412b4")
+    packet = bytes.fromhex(GOLDEN["status_id1_params_3412"])
     status = decode_status_packet(packet, expected_id=1)
     assert status.error == 0
     assert status.params == bytes.fromhex("3412")
@@ -52,7 +67,7 @@ def test_decode_status_packet_and_checksum() -> None:
 def test_bad_checksum_is_rejected() -> None:
     """校验和错误的状态包应被拒绝。"""
     try:
-        decode_status_packet(bytes.fromhex("ffff0104003412b5"))
+        decode_status_packet(bytes.fromhex(GOLDEN["status_bad_checksum"]))
     except STS3215ProtocolError:
         pass
     else:

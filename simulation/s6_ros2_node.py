@@ -5,11 +5,13 @@ Unmanaged default preserves S6-03 regression behavior. Simulation only.
 from __future__ import annotations
 
 import argparse
+import os
 import time
 from pathlib import Path
 
 from .fetch_leap_menagerie import DEST
 from .s6_official_bridge import OfficialPlant, SimSession
+from .canonical import CommandContractError
 from .s6_command_contract import JointCommandData
 
 
@@ -51,6 +53,9 @@ def main() -> None:
             self.lifecycle_active = not self.managed
             self.armed = not self.managed
             self.next_epoch = 1
+            self.session_id = int.from_bytes(os.urandom(8), "little")
+            while self.session_id == 0:
+                self.session_id = int.from_bytes(os.urandom(8), "little")
             self.last_supervisor_heartbeat = None
             self.supervisor_lease_s = 0.35
             self.plant = None
@@ -64,6 +69,7 @@ def main() -> None:
             self.state_pub = self.create_publisher(JointState, "/joint_states", 10)
             self.status_pub = self.create_publisher(String, "/leap/sim_status", 10)
             self.epoch_pub = self.create_publisher(UInt64, "/leap/sim_epoch", epoch_qos)
+            self.session_pub = self.create_publisher(UInt64, "/leap/sim_session", epoch_qos)
             self.create_subscription(JointCommand, "/leap/joint_command", self.on_command, 10)
             self.create_subscription(UInt64, "/leap/supervisor_heartbeat",
                                      self.on_supervisor_heartbeat, 10)
@@ -80,6 +86,7 @@ def main() -> None:
         def _create_session(self) -> None:
             self.plant = OfficialPlant(args.model.resolve())
             self.session = SimSession(self.plant, args.bridge.resolve())
+            self.session.session_id = self.session_id
             if self.managed:
                 self.session.epoch = self.next_epoch
                 self.next_epoch += 1
@@ -141,6 +148,7 @@ def main() -> None:
         def publish_state(self) -> None:
             if self.session is None:
                 self.status_pub.publish(String(data="UNCONFIGURED"))
+                self.session_pub.publish(UInt64(data=self.session_id))
                 return
             stamp = stamp_from_us(self.plant.time_us)
             self.clock_pub.publish(ClockMsg(clock=stamp))
@@ -153,6 +161,7 @@ def main() -> None:
             self.state_pub.publish(msg)
             self.status_pub.publish(String(data=self.session.state))
             self.epoch_pub.publish(UInt64(data=self.session.epoch))
+            self.session_pub.publish(UInt64(data=self.session_id))
 
         def on_supervisor_heartbeat(self, _msg: UInt64) -> None:
             self.last_supervisor_heartbeat = time.monotonic()
@@ -167,14 +176,14 @@ def main() -> None:
                     raise ValueError("simulator not activated and supervisor-armed")
                 self.session.accept_command(JointCommandData(
                     stamp_us=micros_from_stamp(msg.stamp),
+                    session_id=int(msg.session_id),
                     epoch=int(msg.epoch),
                     sequence=int(msg.sequence),
                     names=tuple(msg.joint_names),
                     positions=tuple(msg.position)))
             except (ValueError, TypeError) as exc:
-                # Reject bad command without moving. Existing authorized target
-                # will expire by simulation-time TTL if not refreshed.
-                self.get_logger().warning(f"Rejected joint command: {exc}")
+                token = exc.code if isinstance(exc, CommandContractError) else str(exc)
+                self.get_logger().warning(f"Rejected joint command: {token}")
 
         def on_tick(self) -> None:
             try:

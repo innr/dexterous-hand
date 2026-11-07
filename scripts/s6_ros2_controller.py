@@ -17,12 +17,12 @@ def main() -> None:
     from rosgraph_msgs.msg import Clock as ClockMsg
     from std_msgs.msg import UInt64
     from leap_interfaces.msg import JointCommand
-    from simulation.s6_official_bridge import load_contract
+    from simulation.canonical import CANONICAL_NAMES
 
     class Controller(LifecycleNode):
         def __init__(self):
             super().__init__("leap_s6_test_controller")
-            self.names = [x["mujoco_joint"] for x in load_contract()]
+            self.names = list(CANONICAL_NAMES)
             self.active = not args.managed
             self.last_supervisor_heartbeat = None
             self.supervisor_lease_s = 0.35
@@ -31,6 +31,7 @@ def main() -> None:
                 UInt64, "/leap/controller_heartbeat", 10)
             self.clock = None
             self.epoch = None
+            self.session_id = None
             self.seq = 0
             self.pub = self.create_publisher(JointCommand, "/leap/joint_command", 10)
             clock_qos = QoSProfile(depth=10, reliability=ReliabilityPolicy.BEST_EFFORT)
@@ -38,6 +39,7 @@ def main() -> None:
             qos = QoSProfile(depth=1, reliability=ReliabilityPolicy.RELIABLE,
                              durability=DurabilityPolicy.TRANSIENT_LOCAL)
             self.create_subscription(UInt64, "/leap/sim_epoch", self.on_epoch, qos)
+            self.create_subscription(UInt64, "/leap/sim_session", self.on_session, qos)
             self.create_subscription(UInt64, "/leap/supervisor_heartbeat",
                                      self.on_supervisor_heartbeat, 10)
             self.timer = self.create_timer(
@@ -52,6 +54,7 @@ def main() -> None:
             self.seq = 0
             self.clock = None
             self.epoch = None
+            self.session_id = None
             self.active = True
             return super().on_activate(state)
 
@@ -59,6 +62,7 @@ def main() -> None:
             self.active = False
             self.clock = None
             self.epoch = None
+            self.session_id = None
             return super().on_deactivate(state)
 
         def on_cleanup(self, state):
@@ -84,16 +88,23 @@ def main() -> None:
                 self.seq = 0
             self.epoch = msg.data
 
+        def on_session(self, msg):
+            if self.session_id != msg.data:
+                self.seq = 0
+            self.session_id = msg.data
+
         def tick(self):
             self.heartbeat_seq += 1
             self.heartbeat_pub.publish(UInt64(data=self.heartbeat_seq))
             if args.managed and self.active and not self.supervisor_alive():
                 self.active = False  # Fail closed if the external supervisor dies.
                 self.get_logger().error("external supervisor heartbeat lease expired")
-            if not self.active or self.clock is None or self.epoch is None:
+            if (not self.active or self.clock is None or self.epoch is None or
+                    self.session_id is None or self.session_id == 0):
                 return
             cmd = JointCommand()
             cmd.stamp = self.clock
+            cmd.session_id = self.session_id
             cmd.epoch = self.epoch
             cmd.sequence = self.seq
             cmd.joint_names = self.names

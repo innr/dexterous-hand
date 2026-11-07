@@ -11,12 +11,13 @@ from pathlib import Path
 from typing import Callable
 import time
 
+from .canonical import CANONICAL_NAMES, load_identity_joints, resolve_menagerie_path
 from .s6_command_contract import JointCommandData, validate_command
 
 from .fetch_leap_menagerie import DEST
 from .s6_mujoco_bridge import CONTROL_DT, ControlBridgeProcess, PROJECT_ROOT
 
-MAPPING = PROJECT_ROOT / "config" / "menagerie_right_mapping.json"
+MAPPING = resolve_menagerie_path()
 COUNT = 16
 TICK_US = 10_000
 COMMAND_TTL_US = 100_000
@@ -44,8 +45,12 @@ class OfficialPlant:
             raise ValueError("official model must have 16 joints and 16 actuators")
         if not math.isclose(self.model.opt.timestep, 0.002, abs_tol=1e-9):
             self.model.opt.timestep = 0.002
+        identity = {j["name"]: j for j in load_identity_joints()}
         self.qadr, self.vadr, self.aid, self.lower, self.upper = [], [], [], [], []
         for entry in self.mapping:
+            ident = identity.get(entry["canonical"])
+            if ident is None:
+                raise ValueError(f"menagerie canonical name missing in identity: {entry}")
             joint = self.model.joint(entry["mujoco_joint"])
             actuator = self.model.actuator(entry["actuator"])
             jid = int(joint.id)
@@ -55,12 +60,12 @@ class OfficialPlant:
             self.qadr.append(int(joint.qposadr[0]))
             self.vadr.append(int(joint.dofadr[0]))
             self.aid.append(aid)
-            # C++ S5 MotionControlCore currently uses +/- 90 deg default limits.
-            # Do not silently ask the official plant to exceed that tested range.
             low = max(float(self.model.jnt_range[jid, 0]),
-                      float(self.model.actuator_ctrlrange[aid, 0]), -math.pi / 2)
+                      float(self.model.actuator_ctrlrange[aid, 0]),
+                      float(ident["limit_rad"][0]))
             high = min(float(self.model.jnt_range[jid, 1]),
-                       float(self.model.actuator_ctrlrange[aid, 1]), math.pi / 2)
+                       float(self.model.actuator_ctrlrange[aid, 1]),
+                       float(ident["limit_rad"][1]))
             if not low < 0.0 < high:
                 raise ValueError(f"unsupported joint range for default C++ core: {entry}")
             self.lower.append(low)
@@ -72,6 +77,10 @@ class OfficialPlant:
 
     @property
     def names(self) -> list[str]:
+        return list(CANONICAL_NAMES)
+
+    @property
+    def mujoco_names(self) -> list[str]:
         return [entry["mujoco_joint"] for entry in self.mapping]
 
     def feedback(self) -> tuple[list[float], list[float]]:
@@ -112,6 +121,7 @@ class SimSession:
         self.bridge_factory = bridge_factory
         self.bridge = bridge_factory(bridge_executable)
         self.epoch = 0
+        self.session_id = 0
         self.state = "READY"
         self.target: list[float] | None = None
         self.target_stamp_us: int | None = None
@@ -147,7 +157,7 @@ class SimSession:
             raise ValueError(f"commands forbidden in state {self.state}")
         ordered = validate_command(
             command, names=self.plant.names, lower=self.plant.lower,
-            upper=self.plant.upper, epoch=self.epoch,
+            upper=self.plant.upper, session_id=self.session_id, epoch=self.epoch,
             last_sequence=self.last_sequence, sim_time_us=self.plant.time_us)
         self.target = ordered
         self.target_stamp_us = command.stamp_us

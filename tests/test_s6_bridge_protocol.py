@@ -1,9 +1,19 @@
 """S6-01 protocol integration: no MuJoCo dependency required."""
 from __future__ import annotations
 import math
+import os
 from pathlib import Path
 import subprocess
 import sys
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+
+
+def bridge_env() -> dict[str, str]:
+    env = os.environ.copy()
+    if "LEAP_JOINT_MAPPING" not in env and "LEAP_PROJECT_ROOT" not in env:
+        env["LEAP_PROJECT_ROOT"] = str(PROJECT_ROOT)
+    return env
 
 
 def step(time_us: int, target: float = 0.3, q: float = 0.0) -> str:
@@ -12,9 +22,21 @@ def step(time_us: int, target: float = 0.3, q: float = 0.0) -> str:
 
 
 def main(executable: str) -> None:
-    proc = subprocess.Popen([str(Path(executable).resolve())], stdin=subprocess.PIPE,
-                            stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                            text=True, bufsize=1)
+    exe = str(Path(executable).resolve())
+    empty_env = os.environ.copy()
+    empty_env["LEAP_JOINT_MAPPING"] = ""
+    empty_env.pop("LEAP_PROJECT_ROOT", None)
+    empty = subprocess.Popen(
+        [exe], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+        text=True, bufsize=1, env=empty_env)
+    empty_out, empty_err = empty.communicate(timeout=5)
+    assert empty.returncode != 0
+    assert "READY" not in empty_out
+    assert empty_err.strip() != ""
+
+    proc = subprocess.Popen(
+        [exe], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+        text=True, bufsize=1, env=bridge_env())
     assert proc.stdin and proc.stdout
     assert proc.stdout.readline().strip() == "READY 16 S6-01"
     commands = []

@@ -2,7 +2,13 @@
 
 > 定位：个人开发者 / 学习用途 / 遥操作 + 数据采集
 > 技术路线：LEAP Hand 开源复刻（飞特舵机版）+ ROS2 + LeRobot 数据管线
-> 整理日期：2026-08-25
+> 整理日期：2026-08-25（硬件 BOM / 采购路线）
+>
+> **当前软件架构不在本文。** 已实现 S1–S6 仿真闭环；权威图与契约：
+> [`docs/architecture/system_architecture.md`](docs/architecture/system_architecture.md)、
+> [`docs/designs/s7_00_contract_convergence.md`](docs/designs/s7_00_contract_convergence.md)。
+> 下文第二节的 `hand_bringup/` 分层与 `ros2_control` 是 2026-08 规划，不是现在的代码树。
+> 真机运动仍是 NO-GO（H-01 / H-02 / H-03）。
 
 ---
 
